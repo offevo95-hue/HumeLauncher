@@ -8,6 +8,7 @@ import android.view.Window
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -25,6 +26,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap // <-- ДОБАВЛЕН ИМПОРТ
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -84,11 +86,13 @@ fun HumeHomeScreen() {
                 Text("Загрузка...", color = Color.White, fontSize = 24.sp)
             }
         } else {
+            // Верхняя панель
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 48.dp, vertical = 32.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // Погода
                 Row(
                     modifier = Modifier
                         .clip(RoundedCornerShape(24.dp))
@@ -105,6 +109,7 @@ fun HumeHomeScreen() {
                     }
                 }
 
+                // Время и кнопки
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     Text(currentTime, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Medium)
                     
@@ -120,6 +125,7 @@ fun HumeHomeScreen() {
                 }
             }
 
+            // Сетка приложений
             LazyVerticalGrid(
                 columns = GridCells.Fixed(6),
                 modifier = Modifier.fillMaxSize().padding(top = 80.dp, bottom = 220.dp, start = 64.dp, end = 64.dp),
@@ -134,6 +140,7 @@ fun HumeHomeScreen() {
                 }
             }
 
+            // Док (Liquid Glass)
             Box(
                 Modifier.align(Alignment.BottomCenter)
                     .padding(bottom = 32.dp)
@@ -160,7 +167,7 @@ fun HumeHomeScreen() {
                             contentAlignment = Alignment.Center
                         ) {
                             val bmp = iconCache[app.packageName] ?: app.icon.toBitmap().asImageBitmap().also { iconCache[app.packageName] = it }
-                            androidx.compose.foundation.Image(bitmap = bmp, contentDescription = app.name, modifier = Modifier.size(64.dp))
+                            Image(bitmap = bmp, contentDescription = app.name, modifier = Modifier.size(64.dp))
                         }
                     }
                     Box(
@@ -179,6 +186,7 @@ fun HumeHomeScreen() {
             }
         }
 
+        // Экран всех приложений
         if (isDrawerOpen) {
             Box(Modifier.fillMaxSize().background(Color(0xFA0A0A0A)).padding(48.dp)) {
                 Column {
