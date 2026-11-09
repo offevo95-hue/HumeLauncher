@@ -5,6 +5,7 @@ import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.net.Uri
 import android.os.Bundle
+import android.view.KeyEvent
 import android.view.Window
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -31,6 +32,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -71,7 +73,7 @@ fun HumeHomeScreen() {
     var targetDockIndex by remember { mutableIntStateOf(-1) }
     var isEditMode by remember { mutableStateOf(false) }       // Админ-режим (появляются три точки)
     
-    // Счетчики для отслеживания повторных нажатий вправо на последнем элементе
+    // Счетчик нажатий вправо на последнем элементе
     var rightPressCount by remember { mutableIntStateOf(0) }
     
     var selectedAppForMenu by remember { mutableStateOf<AppInfo?>(null) }
@@ -141,7 +143,7 @@ fun HumeHomeScreen() {
                 Text("Загрузка приложений...", color = Color.White, fontSize = 24.sp)
             }
         } else {
-            // ВЕРХНЯЯ ПАНЕЛЬ (чистая)
+            // ВЕРХНЯЯ ПАНЕЛЬ
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 48.dp, vertical = 32.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -207,11 +209,22 @@ fun HumeHomeScreen() {
                                     .onFocusChanged { 
                                         isFocused = it.isFocused
                                         if (!isFocused && isLastElement) {
-                                            // Сбрасываем счетчик при уходе с последнего элемента
                                             rightPressCount = 0
                                         }
                                     }
                                     .focusable()
+                                    .onKeyEvent { keyEvent ->
+                                        if (isLastElement && keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_RIGHT && keyEvent.nativeKeyEvent.action == KeyEvent.ACTION_DOWN) {
+                                            rightPressCount++
+                                            if (rightPressCount >= 2) {
+                                                isEditMode = true
+                                                Toast.makeText(context, "Админ-режим активирован!", Toast.LENGTH_SHORT).show()
+                                            }
+                                            true
+                                        } else {
+                                            false
+                                        }
+                                    }
                                     .clip(RoundedCornerShape(20.dp))
                                     .background(if (isFocused) Color(0xFF2A444C) else Color(0xFF162227))
                                     .border(
@@ -265,6 +278,18 @@ fun HumeHomeScreen() {
                                         }
                                     }
                                     .focusable()
+                                    .onKeyEvent { keyEvent ->
+                                        if (isLastElement && keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_RIGHT && keyEvent.nativeKeyEvent.action == KeyEvent.ACTION_DOWN) {
+                                            rightPressCount++
+                                            if (rightPressCount >= 2) {
+                                                isEditMode = true
+                                                Toast.makeText(context, "Админ-режим активирован!", Toast.LENGTH_SHORT).show()
+                                            }
+                                            true
+                                        } else {
+                                            false
+                                        }
+                                    }
                                     .clip(RoundedCornerShape(20.dp))
                                     .background(if (isFocused) Color(0xFF2A444C) else Color(0x10FFFFFF))
                                     .border(
@@ -273,17 +298,8 @@ fun HumeHomeScreen() {
                                         shape = RoundedCornerShape(20.dp)
                                     )
                                     .clickable {
-                                        if (isLastElement && !isEditMode) {
-                                            // Если жмем на последний пустой плюс, считаем как жест вправо
-                                            rightPressCount++
-                                            if (rightPressCount >= 2) {
-                                                isEditMode = true
-                                                Toast.makeText(context, "Админ-режим активирован", Toast.LENGTH_SHORT).show()
-                                            }
-                                        } else {
-                                            targetDockIndex = index
-                                            isPickerOpen = true
-                                        }
+                                        targetDockIndex = index
+                                        isPickerOpen = true
                                     },
                                 contentAlignment = Alignment.Center
                             ) {
@@ -309,7 +325,6 @@ fun HumeHomeScreen() {
                                     shape = RoundedCornerShape(20.dp)
                                 )
                                 .clickable {
-                                    // Клик по точкам открывает список приложений для администрирования или закрывает режим
                                     isDrawerOpen = true
                                 },
                             contentAlignment = Alignment.Center
@@ -321,7 +336,7 @@ fun HumeHomeScreen() {
             }
         }
 
-        // ЭКРАН ВСЕХ ПРИЛОЖЕНИЙ (ОТКРЫВАЕТСЯ ЧЕРЕЗ ТОЧКИ)
+        // Окно всех приложений (по клику на три точки)
         if (isDrawerOpen) {
             Box(Modifier.fillMaxSize().background(Color(0xFA0A0A0A)).padding(48.dp)) {
                 Column {
@@ -349,7 +364,7 @@ fun HumeHomeScreen() {
             }
         }
 
-        // ОКНО ВЫБОРА ПРИЛОЖЕНИЯ ДЛЯ ПЛЮСИКА (+)
+        // Окно выбора приложения для плюсика
         if (isPickerOpen) {
             Box(Modifier.fillMaxSize().background(Color(0xCC000000)).focusable(), contentAlignment = Alignment.Center) {
                 Column(
@@ -393,7 +408,7 @@ fun HumeHomeScreen() {
             }
         }
 
-        // КОНТЕКСТНОЕ МЕНЮ УПРАВЛЕНИЯ ЭЛЕМЕНТОМ ДОКА
+        // Контекстное меню элемента дока
         selectedAppForMenu?.let { app ->
             val isInDock = dockApps.contains(app)
             val appIndex = dockApps.indexOf(app)
