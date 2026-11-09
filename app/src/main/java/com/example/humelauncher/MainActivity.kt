@@ -212,7 +212,7 @@ fun HumeHomeScreen() {
                                     }
                                     .focusable()
                                     .onKeyEvent { keyEvent ->
-                                        if (isLastElement && keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_RIGHT && keyEvent.nativeKeyEvent.action == KeyEvent.ACTION_DOWN) {
+                                        if (!isEditMode && isLastElement && keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_RIGHT && keyEvent.nativeKeyEvent.action == KeyEvent.ACTION_DOWN) {
                                             rightPressCount++
                                             if (rightPressCount >= 2) {
                                                 isEditMode = true
@@ -277,7 +277,7 @@ fun HumeHomeScreen() {
                                     }
                                     .focusable()
                                     .onKeyEvent { keyEvent ->
-                                        if (isLastElement && keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_RIGHT && keyEvent.nativeKeyEvent.action == KeyEvent.ACTION_DOWN) {
+                                        if (!isEditMode && isLastElement && keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_RIGHT && keyEvent.nativeKeyEvent.action == KeyEvent.ACTION_DOWN) {
                                             rightPressCount++
                                             if (rightPressCount >= 2) {
                                                 isEditMode = true
@@ -333,25 +333,37 @@ fun HumeHomeScreen() {
             }
         }
 
-        // ОКНО ВСЕХ ПРИЛОЖЕНИЙ С ПОЛНЫМ УПРАВЛЕНИЕМ С ПУЛЬТА
+        // ОКНО ВСЕХ ПРИЛОЖЕНИЙ (БЕЗ УХОДА ФОКУСА ЗА РАМКИ)
         if (isDrawerOpen) {
             Box(
                 Modifier.fillMaxSize()
                     .background(Color(0xFA0A0A0A))
-                    .focusable()
                     .padding(48.dp)
             ) {
-                Column(Modifier.fillMaxSize().focusable()) {
+                Column(Modifier.fillMaxSize()) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Text("Все приложения", color = Color.White, fontSize = 32.sp, fontWeight = FontWeight.Bold)
-                        Text("Закрыть ✕", color = Color.White, fontSize = 20.sp, modifier = Modifier.clickable { isDrawerOpen = false }.focusable())
+                        
+                        var isCloseFocused by remember { mutableStateOf(false) }
+                        Box(
+                            modifier = Modifier
+                                .onFocusChanged { isCloseFocused = it.isFocused }
+                                .focusable()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(if (isCloseFocused) Color(0x44FFFFFF) else Color.Transparent)
+                                .border(width = if (isCloseFocused) 2.dp else 0.dp, color = Color.White, shape = RoundedCornerShape(12.dp))
+                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                                .clickable { isDrawerOpen = false }
+                        ) {
+                            Text("Закрыть ✕", color = Color.White, fontSize = 20.sp)
+                        }
                     }
                     Spacer(Modifier.height(24.dp))
                     LazyVerticalGrid(
                         columns = GridCells.Fixed(6),
                         horizontalArrangement = Arrangement.spacedBy(24.dp),
                         verticalArrangement = Arrangement.spacedBy(24.dp),
-                        modifier = Modifier.fillMaxSize().focusable()
+                        modifier = Modifier.fillMaxSize()
                     ) {
                         itemsIndexed(allApps) { index, app ->
                             HumeAppCard(
@@ -359,7 +371,7 @@ fun HumeHomeScreen() {
                                 iconCache = iconCache, 
                                 onClick = { selectedAppForMenu = app },
                                 isLocked = lockedPackages.contains(app.packageName),
-                                autoFocus = (index == 0) // Фокус на первую иконку при открытии
+                                autoFocus = (index == 0)
                             )
                         }
                     }
@@ -367,12 +379,11 @@ fun HumeHomeScreen() {
             }
         }
 
-        // ОКНО ВЫБОРА ПРИЛОЖЕНИЯ В ДОК С УПРАВЛЕНИЕМ С ПУЛЬТА
+        // ОКНО ВЫБОРА ПРИЛОЖЕНИЯ В ДОК (БЕЗ УХОДА ФОКУСА ЗА РАМКИ)
         if (isPickerOpen) {
             Box(
                 Modifier.fillMaxSize()
-                    .background(Color(0xCC000000))
-                    .focusable(),
+                    .background(Color(0xCC000000)),
                 contentAlignment = Alignment.Center
             ) {
                 Column(
@@ -381,20 +392,32 @@ fun HumeHomeScreen() {
                         .clip(RoundedCornerShape(24.dp))
                         .background(Color(0xFF162B32))
                         .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(24.dp))
-                        .focusable()
                         .padding(32.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Text("Выберите приложение в док", color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Bold)
-                        Text("Закрыть ✕", color = Color.White, fontSize = 18.sp, modifier = Modifier.clickable { isPickerOpen = false }.focusable())
+                        
+                        var isPickerCloseFocused by remember { mutableStateOf(false) }
+                        Box(
+                            modifier = Modifier
+                                .onFocusChanged { isPickerCloseFocused = it.isFocused }
+                                .focusable()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(if (isPickerCloseFocused) Color(0x44FFFFFF) else Color.Transparent)
+                                .border(width = if (isPickerCloseFocused) 2.dp else 0.dp, color = Color.White, shape = RoundedCornerShape(12.dp))
+                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                                .clickable { isPickerOpen = false }
+                        ) {
+                            Text("Закрыть ✕", color = Color.White, fontSize = 18.sp)
+                        }
                     }
                     Spacer(Modifier.height(24.dp))
                     LazyVerticalGrid(
                         columns = GridCells.Fixed(5),
                         horizontalArrangement = Arrangement.spacedBy(20.dp),
                         verticalArrangement = Arrangement.spacedBy(20.dp),
-                        modifier = Modifier.fillMaxSize().focusable()
+                        modifier = Modifier.fillMaxSize()
                     ) {
                         itemsIndexed(allApps) { index, app ->
                             HumeAppCard(
@@ -409,7 +432,7 @@ fun HumeHomeScreen() {
                                     isPickerOpen = false
                                 },
                                 isLocked = lockedPackages.contains(app.packageName),
-                                autoFocus = (index == 0) // Фокус на первую иконку при открытии
+                                autoFocus = (index == 0)
                             )
                         }
                     }
@@ -424,8 +447,7 @@ fun HumeHomeScreen() {
 
             Box(
                 Modifier.fillMaxSize()
-                    .background(Color(0xCC000000))
-                    .focusable(),
+                    .background(Color(0xCC000000)),
                 contentAlignment = Alignment.Center
             ) {
                 Column(
@@ -434,8 +456,7 @@ fun HumeHomeScreen() {
                         .clip(RoundedCornerShape(24.dp))
                         .background(Color(0xFF162B32))
                         .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(24.dp))
-                        .padding(20.dp)
-                        .focusable(),
+                        .padding(20.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(app.name, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
@@ -526,9 +547,9 @@ fun HumeHomeScreen() {
 
         // Диалоги PIN
         if (showSetPinDialog) {
-            Box(Modifier.fillMaxSize().background(Color(0xCC000000)).focusable(), contentAlignment = Alignment.Center) {
+            Box(Modifier.fillMaxSize().background(Color(0xCC000000)), contentAlignment = Alignment.Center) {
                 Column(
-                    modifier = Modifier.width(320.dp).clip(RoundedCornerShape(24.dp)).background(Color(0xFF162B32)).border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(24.dp)).padding(24.dp).focusable(),
+                    modifier = Modifier.width(320.dp).clip(RoundedCornerShape(24.dp)).background(Color(0xFF162B32)).border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(24.dp)).padding(24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text("Придумайте свой PIN-код", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
@@ -554,9 +575,9 @@ fun HumeHomeScreen() {
         }
 
         if (showEnterPinDialog && pendingAppAction != null) {
-            Box(Modifier.fillMaxSize().background(Color(0xCC000000)).focusable(), contentAlignment = Alignment.Center) {
+            Box(Modifier.fillMaxSize().background(Color(0xCC000000)), contentAlignment = Alignment.Center) {
                 Column(
-                    modifier = Modifier.width(320.dp).clip(RoundedCornerShape(24.dp)).background(Color(0xFF162B32)).border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(24.dp)).padding(24.dp).focusable(),
+                    modifier = Modifier.width(320.dp).clip(RoundedCornerShape(24.dp)).background(Color(0xFF162B32)).border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(24.dp)).padding(24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text("Введите ваш PIN-код", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
@@ -584,9 +605,9 @@ fun HumeHomeScreen() {
         }
 
         if (showRemovePinDialog && pendingAppAction != null) {
-            Box(Modifier.fillMaxSize().background(Color(0xCC000000)).focusable(), contentAlignment = Alignment.Center) {
+            Box(Modifier.fillMaxSize().background(Color(0xCC000000)), contentAlignment = Alignment.Center) {
                 Column(
-                    modifier = Modifier.width(320.dp).clip(RoundedCornerShape(24.dp)).background(Color(0xFF162B32)).border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(24.dp)).padding(24.dp).focusable(),
+                    modifier = Modifier.width(320.dp).clip(RoundedCornerShape(24.dp)).background(Color(0xFF162B32)).border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(24.dp)).padding(24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text("Введите PIN для снятия блока", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
@@ -622,8 +643,7 @@ fun MenuButton(text: String, isRed: Boolean = false, modifier: Modifier = Modifi
             .height(44.dp)
             .clip(RoundedCornerShape(12.dp))
             .background(if (isRed) Color(0x44FF0000) else Color(0x22FFFFFF))
-            .clickable { onClick() }
-            .focusable(),
+            .clickable { onClick() },
         contentAlignment = Alignment.Center
     ) {
         Text(text, color = if (isRed) Color(0xFFFF6B6B) else Color.White, fontSize = 15.sp, fontWeight = FontWeight.Medium)
