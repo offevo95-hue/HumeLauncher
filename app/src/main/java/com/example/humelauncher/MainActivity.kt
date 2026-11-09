@@ -27,6 +27,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -64,16 +66,14 @@ fun HumeHomeScreen() {
     val context = LocalContext.current
     var allApps by remember { mutableStateOf<List<AppInfo>>(emptyList()) }
     
-    // Док с 5 слотами
     var dockApps by remember { mutableStateOf<MutableList<AppInfo?>>(mutableListOf(null, null, null, null, null)) }
     
     var currentTime by remember { mutableStateOf("") }
     var isDrawerOpen by remember { mutableStateOf(false) }     
     var isPickerOpen by remember { mutableStateOf(false) }     
     var targetDockIndex by remember { mutableIntStateOf(-1) }
-    var isEditMode by remember { mutableStateOf(false) }       // Админ-режим (появляются три точки)
+    var isEditMode by remember { mutableStateOf(false) }       
     
-    // Счетчик нажатий вправо на последнем элементе
     var rightPressCount by remember { mutableIntStateOf(0) }
     
     var selectedAppForMenu by remember { mutableStateOf<AppInfo?>(null) }
@@ -143,7 +143,6 @@ fun HumeHomeScreen() {
                 Text("Загрузка приложений...", color = Color.White, fontSize = 24.sp)
             }
         } else {
-            // ВЕРХНЯЯ ПАНЕЛЬ
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 48.dp, vertical = 32.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -181,7 +180,6 @@ fun HumeHomeScreen() {
                 }
             }
 
-            // НИЖНИЙ ДОК
             Box(
                 Modifier.align(Alignment.BottomCenter)
                     .padding(bottom = 20.dp)
@@ -308,7 +306,6 @@ fun HumeHomeScreen() {
                         }
                     }
                     
-                    // ТРИ ТОЧКИ СПРАВА: ПОЯВЛЯЮТСЯ ТОЛЬКО КОГДА АКТИВИРОВАН isEditMode
                     if (isEditMode) {
                         var isMoreFocused by remember { mutableStateOf(false) }
                         Box(
@@ -336,10 +333,15 @@ fun HumeHomeScreen() {
             }
         }
 
-        // Окно всех приложений (по клику на три точки)
+        // ОКНО ВСЕХ ПРИЛОЖЕНИЙ С ПОЛНЫМ УПРАВЛЕНИЕМ С ПУЛЬТА
         if (isDrawerOpen) {
-            Box(Modifier.fillMaxSize().background(Color(0xFA0A0A0A)).padding(48.dp)) {
-                Column {
+            Box(
+                Modifier.fillMaxSize()
+                    .background(Color(0xFA0A0A0A))
+                    .focusable()
+                    .padding(48.dp)
+            ) {
+                Column(Modifier.fillMaxSize().focusable()) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Text("Все приложения", color = Color.White, fontSize = 32.sp, fontWeight = FontWeight.Bold)
                         Text("Закрыть ✕", color = Color.White, fontSize = 20.sp, modifier = Modifier.clickable { isDrawerOpen = false }.focusable())
@@ -351,12 +353,13 @@ fun HumeHomeScreen() {
                         verticalArrangement = Arrangement.spacedBy(24.dp),
                         modifier = Modifier.fillMaxSize().focusable()
                     ) {
-                        itemsIndexed(allApps) { _, app ->
+                        itemsIndexed(allApps) { index, app ->
                             HumeAppCard(
                                 app = app, 
                                 iconCache = iconCache, 
                                 onClick = { selectedAppForMenu = app },
-                                isLocked = lockedPackages.contains(app.packageName)
+                                isLocked = lockedPackages.contains(app.packageName),
+                                autoFocus = (index == 0) // Фокус на первую иконку при открытии
                             )
                         }
                     }
@@ -364,17 +367,22 @@ fun HumeHomeScreen() {
             }
         }
 
-        // Окно выбора приложения для плюсика
+        // ОКНО ВЫБОРА ПРИЛОЖЕНИЯ В ДОК С УПРАВЛЕНИЕМ С ПУЛЬТА
         if (isPickerOpen) {
-            Box(Modifier.fillMaxSize().background(Color(0xCC000000)).focusable(), contentAlignment = Alignment.Center) {
+            Box(
+                Modifier.fillMaxSize()
+                    .background(Color(0xCC000000))
+                    .focusable(),
+                contentAlignment = Alignment.Center
+            ) {
                 Column(
                     modifier = Modifier
                         .fillMaxSize(0.8f)
                         .clip(RoundedCornerShape(24.dp))
                         .background(Color(0xFF162B32))
                         .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(24.dp))
-                        .padding(32.dp)
-                        .focusable(),
+                        .focusable()
+                        .padding(32.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -388,7 +396,7 @@ fun HumeHomeScreen() {
                         verticalArrangement = Arrangement.spacedBy(20.dp),
                         modifier = Modifier.fillMaxSize().focusable()
                     ) {
-                        itemsIndexed(allApps) { _, app ->
+                        itemsIndexed(allApps) { index, app ->
                             HumeAppCard(
                                 app = app,
                                 iconCache = iconCache,
@@ -400,7 +408,8 @@ fun HumeHomeScreen() {
                                     }
                                     isPickerOpen = false
                                 },
-                                isLocked = lockedPackages.contains(app.packageName)
+                                isLocked = lockedPackages.contains(app.packageName),
+                                autoFocus = (index == 0) // Фокус на первую иконку при открытии
                             )
                         }
                     }
@@ -408,7 +417,7 @@ fun HumeHomeScreen() {
             }
         }
 
-        // Контекстное меню элемента дока
+        // КОНТЕКСТНОЕ МЕНЮ
         selectedAppForMenu?.let { app ->
             val isInDock = dockApps.contains(app)
             val appIndex = dockApps.indexOf(app)
@@ -622,13 +631,21 @@ fun MenuButton(text: String, isRed: Boolean = false, modifier: Modifier = Modifi
 }
 
 @Composable
-fun HumeAppCard(app: AppInfo, iconCache: MutableMap<String, ImageBitmap>, onClick: () -> Unit, isLocked: Boolean) {
+fun HumeAppCard(app: AppInfo, iconCache: MutableMap<String, ImageBitmap>, onClick: () -> Unit, isLocked: Boolean, autoFocus: Boolean = false) {
     var isFocused by remember { mutableStateOf(false) }
+    val focusRequester = remember { FocusRequester() }
     val bmp = iconCache[app.packageName] ?: app.icon.toBitmap().asImageBitmap().also { iconCache[app.packageName] = it }
+
+    LaunchedEffect(Unit) {
+        if (autoFocus) {
+            try { focusRequester.requestFocus() } catch (_: Exception) {}
+        }
+    }
 
     Box(
         modifier = Modifier
             .size(90.dp)
+            .focusRequester(focusRequester)
             .onFocusChanged { isFocused = it.isFocused }
             .focusable()
             .clip(RoundedCornerShape(16.dp))
