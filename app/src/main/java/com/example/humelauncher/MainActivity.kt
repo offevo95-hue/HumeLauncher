@@ -17,9 +17,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.OutlinedTextField
@@ -29,7 +26,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
@@ -318,14 +314,14 @@ fun HumeHomeScreen() {
 
         // ОКНО ВСЕХ ПРИЛОЖЕНИЙ (•••)
         if (isDrawerOpen) {
-            AppGridModal(title = "Все приложения", apps = allApps, iconCache = iconCache, lockedPackages = lockedPackages, onClose = { isDrawerOpen = false }) { app ->
+            SafeAppGridModal(title = "Все приложения", apps = allApps, iconCache = iconCache, lockedPackages = lockedPackages, onClose = { isDrawerOpen = false }) { app ->
                 selectedAppForMenu = app
             }
         }
 
         // ОКНО ВЫБОРА В ДОК (+)
         if (isPickerOpen) {
-            AppGridModal(title = "Выберите приложение в док", apps = allApps, iconCache = iconCache, lockedPackages = lockedPackages, isPicker = true, onClose = { isPickerOpen = false }) { app ->
+            SafeAppGridModal(title = "Выберите приложение в док", apps = allApps, iconCache = iconCache, lockedPackages = lockedPackages, isPicker = true, onClose = { isPickerOpen = false }) { app ->
                 if (targetDockIndex in dockApps.indices) {
                     val list = dockApps.toMutableList()
                     list[targetDockIndex] = app
@@ -491,10 +487,31 @@ fun HumeHomeScreen() {
 
 enum class PinDialogType { NONE, SET, ENTER, REMOVE }
 
+/**
+ * БЕЗОПАСНАЯ СЕТКА НА РЯДАХ (Column + Row):
+ * Фокус здесь никогда не пропадет в пустую зону, так как мы полностью контролируем ряды и колонки.
+ */
 @Composable
-fun AppGridModal(title: String, apps: List<AppInfo>, iconCache: MutableMap<String, ImageBitmap>, lockedPackages: Set<String>, isPicker: Boolean = false, onClose: () -> Unit, onAppClick: (AppInfo) -> Unit) {
-    val closeButtonRequester = remember { FocusRequester() }
+fun SafeAppGridModal(
+    title: String,
+    apps: List<AppInfo>,
+    iconCache: MutableMap<String, ImageBitmap>,
+    lockedPackages: Set<String>,
+    isPicker: Boolean = false,
+    onClose: () -> Unit,
+    onAppClick: (AppInfo) -> Unit
+) {
     val cols = if (isPicker) 5 else 6
+    val rows = (apps.size + cols - 1) / cols
+    val closeButtonRequester = remember { FocusRequester() }
+    val firstItemRequester = remember { FocusRequester() }
+
+    // Автофокус на первую карточку при открытии
+    LaunchedEffect(Unit) {
+        try {
+            firstItemRequester.requestFocus()
+        } catch (_: Exception) {}
+    }
 
     Box(
         Modifier.fillMaxSize()
@@ -506,8 +523,8 @@ fun AppGridModal(title: String, apps: List<AppInfo>, iconCache: MutableMap<Strin
             modifier = Modifier
                 .let { 
                     if (isPicker) {
-                        it.width(900.dp)
-                          .height(520.dp)
+                        it.width(920.dp)
+                          .height(540.dp)
                           .clip(RoundedCornerShape(24.dp))
                           .background(Color(0xFF162B32))
                           .border(2.dp, Color(0xFF33FFFF), RoundedCornerShape(24.dp))
@@ -520,7 +537,12 @@ fun AppGridModal(title: String, apps: List<AppInfo>, iconCache: MutableMap<Strin
                 .focusable(true),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            // Верхняя строка с заголовком и кнопкой закрытия
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Text(title, color = Color.White, fontSize = if (isPicker) 22.sp else 32.sp, fontWeight = FontWeight.Bold)
                 
                 var isCloseFocused by remember { mutableStateOf(false) }
@@ -538,38 +560,41 @@ fun AppGridModal(title: String, apps: List<AppInfo>, iconCache: MutableMap<Strin
                     Text("Закрыть ✕", color = Color.White, fontSize = if (isPicker) 16.sp else 20.sp)
                 }
             }
-            Spacer(Modifier.height(16.dp))
-            
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(cols),
-                horizontalArrangement = Arrangement.spacedBy(if (isPicker) 16.dp else 24.dp),
-                verticalArrangement = Arrangement.spacedBy(if (isPicker) 16.dp else 24.dp),
-                modifier = Modifier
-                    .fillMaxSize()
-                    .focusable(true)
+            Spacer(Modifier.height(20.dp))
+
+            // РУЧНАЯ СЕТКА ИЗ КОЛОНОК И РЯДОВ (железобетонный фокус)
+            Column(
+                modifier = Modifier.fillMaxWidth().weight(1f),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                itemsIndexed(apps) { index, app ->
-                    // Вычисляем, где находится карточка, чтобы жестко заблокировать фокус на краях сетки
-                    val isLeftEdge = index % cols == 0
-                    val isRightEdge = (index + 1) % cols == 0 || index == apps.size - 1
-                    val isTopRow = index < cols
-                    val isBottomRow = index >= apps.size - (if (apps.size % cols == 0) cols else apps.size % cols)
+                for (r in 0 until rows) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        for (c in 0 until cols) {
+                            val index = r * cols + c
+                            if (index < apps.size) {
+                                val app = apps[index]
+                                val req = if (index == 0) firstItemRequester else remember { FocusRequester() }
 
-                    val cardModifier = Modifier.focusProperties {
-                        if (isLeftEdge) left = FocusRequester.Cancel
-                        if (isRightEdge) right = FocusRequester.Cancel
-                        if (isBottomRow) down = FocusRequester.Cancel
-                        if (isTopRow) up = closeButtonRequester
+                                HumeAppCard(
+                                    app = app,
+                                    iconCache = iconCache,
+                                    onClick = { onAppClick(app) },
+                                    isLocked = lockedPackages.contains(app.packageName),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .focusRequester(req)
+                                )
+                            } else {
+                                // Пустая ячейка для выравнивания строки, чтобы сетка не «плыла»
+                                Spacer(modifier = Modifier.weight(1f))
+                            }
+                        }
                     }
-
-                    HumeAppCard(
-                        app = app, 
-                        iconCache = iconCache, 
-                        onClick = { onAppClick(app) },
-                        isLocked = lockedPackages.contains(app.packageName),
-                        autoFocus = (index == 0),
-                        modifier = cardModifier
-                    )
                 }
             }
         }
@@ -615,21 +640,13 @@ fun MenuButton(text: String, isRed: Boolean = false, modifier: Modifier = Modifi
 }
 
 @Composable
-fun HumeAppCard(app: AppInfo, iconCache: MutableMap<String, ImageBitmap>, onClick: () -> Unit, isLocked: Boolean, autoFocus: Boolean = false, modifier: Modifier = Modifier) {
+fun HumeAppCard(app: AppInfo, iconCache: MutableMap<String, ImageBitmap>, onClick: () -> Unit, isLocked: Boolean, modifier: Modifier = Modifier) {
     var isFocused by remember { mutableStateOf(false) }
-    val focusRequester = remember { FocusRequester() }
     val bmp = iconCache[app.packageName] ?: app.icon.toBitmap().asImageBitmap().also { iconCache[app.packageName] = it }
-
-    LaunchedEffect(Unit) {
-        if (autoFocus) {
-            try { focusRequester.requestFocus() } catch (_: Exception) {}
-        }
-    }
 
     Box(
         modifier = modifier
-            .size(90.dp)
-            .focusRequester(focusRequester)
+            .height(95.dp)
             .onFocusChanged { isFocused = it.isFocused }
             .focusable()
             .clip(RoundedCornerShape(16.dp))
@@ -638,8 +655,11 @@ fun HumeAppCard(app: AppInfo, iconCache: MutableMap<String, ImageBitmap>, onClic
             .clickable { onClick() },
         contentAlignment = Alignment.Center
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Image(bitmap = bmp, contentDescription = app.name, modifier = Modifier.size(54.dp).clip(RoundedCornerShape(12.dp)))
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(4.dp)
+        ) {
+            Image(bitmap = bmp, contentDescription = app.name, modifier = Modifier.size(48.dp).clip(RoundedCornerShape(10.dp)))
             Spacer(Modifier.height(4.dp))
             Text(app.name, color = Color.White, fontSize = 11.sp, maxLines = 1)
         }
