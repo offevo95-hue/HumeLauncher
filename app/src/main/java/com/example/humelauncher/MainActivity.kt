@@ -13,7 +13,6 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
@@ -63,6 +62,7 @@ class MainActivity : ComponentActivity() {
 fun HumeHomeScreen() {
     val context = LocalContext.current
     var allApps by remember { mutableStateOf<List<AppInfo>>(emptyList()) }
+    var dockApps by remember { mutableStateOf<MutableList<AppInfo>>(mutableListOf()) }
     var currentTime by remember { mutableStateOf("") }
     var isDrawerOpen by remember { mutableStateOf(false) }
     
@@ -89,6 +89,10 @@ fun HumeHomeScreen() {
     LaunchedEffect(Unit) {
         val apps = withContext(Dispatchers.IO) { getAllApps(context) }
         allApps = apps.sortedBy { it.name }
+        // Первые 5 приложений по умолчанию попадают в док, если он пустой
+        if (dockApps.isEmpty() && allApps.isNotEmpty()) {
+            dockApps = allApps.take(5).toMutableList()
+        }
     }
 
     val handleAppClick = { app: AppInfo ->
@@ -113,6 +117,7 @@ fun HumeHomeScreen() {
                 Text("Загрузка приложений...", color = Color.White, fontSize = 24.sp)
             }
         } else {
+            // ВЕРХНЯЯ ПАНЕЛЬ
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 48.dp, vertical = 32.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -150,6 +155,7 @@ fun HumeHomeScreen() {
                 }
             }
 
+            // НИЖНИЙ ДОК
             Box(
                 Modifier.align(Alignment.BottomCenter)
                     .padding(bottom = 20.dp)
@@ -165,7 +171,7 @@ fun HumeHomeScreen() {
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    allApps.take(5).forEachIndexed { index, app ->
+                    dockApps.forEachIndexed { index, app ->
                         val colors = listOf(
                             Color(0xFF6A4CFF), Color(0xFFD4C585), Color(0xFF2B50FF), Color(0xFFBCE81A), Color(0xFFF2B705)
                         )
@@ -236,6 +242,7 @@ fun HumeHomeScreen() {
             }
         }
 
+        // ЭКРАН ВСЕХ ПРИЛОЖЕНИЙ
         if (isDrawerOpen) {
             Box(Modifier.fillMaxSize().background(Color(0xFA0A0A0A)).padding(48.dp)) {
                 Column {
@@ -264,7 +271,11 @@ fun HumeHomeScreen() {
             }
         }
 
+        // РУССКОЕ КОНТЕКСТНОЕ МЕНЮ С УПРАВЛЕНИЕМ ДОКОМ
         selectedAppForMenu?.let { app ->
+            val isInDock = dockApps.contains(app)
+            val appIndex = dockApps.indexOf(app)
+
             Box(
                 Modifier.fillMaxSize().background(Color(0xCC000000)),
                 contentAlignment = Alignment.Center
@@ -288,6 +299,50 @@ fun HumeHomeScreen() {
                         selectedAppForMenu = null
                     }
                     Spacer(Modifier.height(8.dp))
+
+                    // Управление доком (Влево / Вправо / Добавить / Удалить)
+                    if (isInDock) {
+                        if (appIndex > 0) {
+                            MenuButton("← Сдвинуть влево") {
+                                val list = dockApps.toMutableList()
+                                val item = list.removeAt(appIndex)
+                                list.add(appIndex - 1, item)
+                                dockApps = list
+                                selectedAppForMenu = null
+                            }
+                            Spacer(Modifier.height(8.dp))
+                        }
+                        if (appIndex < dockApps.size - 1) {
+                            MenuButton("Сдвинуть вправо →") {
+                                val list = dockApps.toMutableList()
+                                val item = list.removeAt(appIndex)
+                                list.add(appIndex + 1, item)
+                                dockApps = list
+                                selectedAppForMenu = null
+                            }
+                            Spacer(Modifier.height(8.dp))
+                        }
+                        MenuButton("Убрать из дока", isRed = true) {
+                            if (dockApps.size > 1) {
+                                dockApps = dockApps.filter { it.packageName != app.packageName }.toMutableList()
+                            } else {
+                                Toast.makeText(context, "В доке должен остаться хотя бы 1 элемент", Toast.LENGTH_SHORT).show()
+                            }
+                            selectedAppForMenu = null
+                        }
+                        Spacer(Modifier.height(8.dp))
+                    } else {
+                        MenuButton("Добавить в док") {
+                            if (dockApps.size < 5) {
+                                dockApps = (dockApps + app).toMutableList()
+                            } else {
+                                Toast.makeText(context, "В доке максимум 5 приложений", Toast.LENGTH_SHORT).show()
+                            }
+                            selectedAppForMenu = null
+                        }
+                        Spacer(Modifier.height(8.dp))
+                    }
+
                     MenuButton(if (isLocked) "Снять PIN-код" else "Заблокировать PIN") {
                         val targetApp = app
                         selectedAppForMenu = null
@@ -309,11 +364,6 @@ fun HumeHomeScreen() {
                     Spacer(Modifier.height(8.dp))
                     MenuButton("О приложении") {
                         openAppInfo(context, app)
-                        selectedAppForMenu = null
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    MenuButton("Удалить", isRed = true) {
-                        uninstallApp(context, app)
                         selectedAppForMenu = null
                     }
                     Spacer(Modifier.height(8.dp))
@@ -527,14 +577,5 @@ fun openAppInfo(context: Context, app: AppInfo) {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         })
     } catch (_: Exception) { Toast.makeText(context, "Ошибка настроек", Toast.LENGTH_SHORT).show() }
-}
-
-fun uninstallApp(context: Context, app: AppInfo) {
-    try {
-        context.startActivity(Intent(Intent.ACTION_DELETE).apply {
-            data = Uri.parse("package:${app.packageName}")
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        })
-    } catch (_: Exception) { Toast.makeText(context, "Не удалось удалить", Toast.LENGTH_SHORT).show() }
 }
 
