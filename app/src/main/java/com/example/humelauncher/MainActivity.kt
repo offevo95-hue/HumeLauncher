@@ -23,6 +23,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -83,9 +84,8 @@ fun HumeHomeScreen() {
     var savedPin by remember { mutableStateOf(prefs.getString("saved_pin", "") ?: "") }
     var pinInput by remember { mutableStateOf("") }
     
-    var showSetPinDialog by remember { mutableStateOf(false) }
-    var showEnterPinDialog by remember { mutableStateOf(false) }
-    var showRemovePinDialog by remember { mutableStateOf(false) }
+    // Типы PIN-диалогов: NONE, SET, ENTER, REMOVE
+    var pinDialogType by remember { mutableStateOf<PinDialogType>(PinDialogType.NONE) }
     var pendingAppAction by remember { mutableStateOf<AppInfo?>(null) }
 
     val iconCache = remember { mutableStateMapOf<String, ImageBitmap>() }
@@ -118,9 +118,7 @@ fun HumeHomeScreen() {
 
     BackHandler(enabled = true) {
         when {
-            showSetPinDialog -> showSetPinDialog = false
-            showEnterPinDialog -> showEnterPinDialog = false
-            showRemovePinDialog -> showRemovePinDialog = false
+            pinDialogType != PinDialogType.NONE -> pinDialogType = PinDialogType.NONE
             selectedAppForMenu != null -> selectedAppForMenu = null
             isPickerOpen -> isPickerOpen = false
             isDrawerOpen -> isDrawerOpen = false
@@ -172,7 +170,7 @@ fun HumeHomeScreen() {
         if (lockedPackages.contains(app.packageName)) {
             pendingAppAction = app
             pinInput = ""
-            showEnterPinDialog = true
+            pinDialogType = PinDialogType.ENTER
         } else {
             openApp(context, app)
         }
@@ -216,14 +214,10 @@ fun HumeHomeScreen() {
                     Text(currentTime, color = Color.White.copy(0.9f), fontSize = 18.sp, fontWeight = FontWeight.Medium)
                     Spacer(Modifier.width(8.dp))
                     
-                    Box(Modifier.size(36.dp).clip(CircleShape).background(Color(0x22FFFFFF)).border(1.dp, Color(0x33FFFFFF), CircleShape), contentAlignment = Alignment.Center) {
-                        Text("⚙️", fontSize = 14.sp)
-                    }
-                    Box(Modifier.size(36.dp).clip(CircleShape).background(Color(0x22FFFFFF)).border(1.dp, Color(0x33FFFFFF), CircleShape), contentAlignment = Alignment.Center) {
-                        Text("🔍", fontSize = 14.sp)
-                    }
-                    Box(Modifier.size(36.dp).clip(CircleShape).background(Color(0x22FFFFFF)).border(1.dp, Color(0x33FFFFFF), CircleShape), contentAlignment = Alignment.Center) {
-                        Text("👤", fontSize = 14.sp)
+                    repeat(3) {
+                        Box(Modifier.size(36.dp).clip(CircleShape).background(Color(0x22FFFFFF)).border(1.dp, Color(0x33FFFFFF), CircleShape), contentAlignment = Alignment.Center) {
+                            Text(when(it) { 0 -> "⚙️"; 1 -> "🔍"; else -> "👤" }, fontSize = 14.sp)
+                        }
                     }
                 }
             }
@@ -248,113 +242,63 @@ fun HumeHomeScreen() {
                         var isFocused by remember { mutableStateOf(false) }
                         val isLastElement = (index == dockApps.size - 1)
 
-                        if (app != null) {
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxHeight()
-                                    .onFocusChanged { 
-                                        isFocused = it.isFocused
-                                        if (!isFocused && isLastElement) {
-                                            rightPressCount = 0
-                                        }
+                        val keyEventListener: (KeyEvent) -> Boolean = { keyEvent ->
+                            if (!isEditMode && isLastElement && keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_RIGHT && keyEvent.nativeKeyEvent.action == KeyEvent.ACTION_DOWN) {
+                                rightPressCount++
+                                if (rightPressCount >= 2) {
+                                    isEditMode = true
+                                    Toast.makeText(context, "Админ-режим активирован!", Toast.LENGTH_SHORT).show()
+                                }
+                                true
+                            } else {
+                                false
+                            }
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .onFocusChanged { 
+                                    isFocused = it.isFocused
+                                    if (!isFocused && isLastElement) rightPressCount = 0
+                                }
+                                .focusable()
+                                .onKeyEvent(keyEventListener)
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(if (isFocused) Color(0xFF2A444C) else if (app != null) Color(0xFF162227) else Color(0x10FFFFFF))
+                                .border(width = if (isFocused) 3.dp else 1.dp, color = if (isFocused) Color.White else Color(0x33FFFFFF), shape = RoundedCornerShape(20.dp))
+                                .clickable {
+                                    if (app != null) {
+                                        if (isEditMode) selectedAppForMenu = app else handleAppClick(app)
+                                    } else {
+                                        targetDockIndex = index
+                                        isPickerOpen = true
                                     }
-                                    .focusable()
-                                    .onKeyEvent { keyEvent ->
-                                        if (!isEditMode && isLastElement && keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_RIGHT && keyEvent.nativeKeyEvent.action == KeyEvent.ACTION_DOWN) {
-                                            rightPressCount++
-                                            if (rightPressCount >= 2) {
-                                                isEditMode = true
-                                                Toast.makeText(context, "Админ-режим активирован!", Toast.LENGTH_SHORT).show()
-                                            }
-                                            true
-                                        } else {
-                                            false
-                                        }
-                                    }
-                                    .clip(RoundedCornerShape(20.dp))
-                                    .background(if (isFocused) Color(0xFF2A444C) else Color(0xFF162227))
-                                    .border(
-                                        width = if (isFocused) 3.dp else 1.dp,
-                                        color = if (isFocused) Color.White else Color(0x33FFFFFF),
-                                        shape = RoundedCornerShape(20.dp)
-                                    )
-                                    .clickable {
-                                        if (isEditMode) {
-                                            selectedAppForMenu = app
-                                        } else {
-                                            handleAppClick(app)
-                                        }
-                                    },
-                                contentAlignment = Alignment.Center
-                            ) {
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (app != null) {
                                 Row(
                                     modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.Center
                                 ) {
                                     val bmp = iconCache[app.packageName] ?: app.icon.toBitmap().asImageBitmap().also { iconCache[app.packageName] = it }
-                                    Image(
-                                        bitmap = bmp, 
-                                        contentDescription = app.name, 
-                                        modifier = Modifier.size(40.dp), 
-                                        contentScale = ContentScale.Fit
-                                    )
+                                    Image(bitmap = bmp, contentDescription = app.name, modifier = Modifier.size(40.dp), contentScale = ContentScale.Fit)
                                     Spacer(Modifier.width(8.dp))
-                                    Text(
-                                        text = app.name,
-                                        color = Color.White,
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        maxLines = 1
-                                    )
+                                    Text(text = app.name, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 1)
                                 }
                                 if (lockedPackages.contains(app.packageName)) {
                                     Text("🔒", fontSize = 12.sp, modifier = Modifier.align(Alignment.TopEnd).padding(6.dp))
                                 }
-                            }
-                        } else {
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxHeight()
-                                    .onFocusChanged { 
-                                        isFocused = it.isFocused
-                                        if (!isFocused && isLastElement) {
-                                            rightPressCount = 0
-                                        }
-                                    }
-                                    .focusable()
-                                    .onKeyEvent { keyEvent ->
-                                        if (!isEditMode && isLastElement && keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_RIGHT && keyEvent.nativeKeyEvent.action == KeyEvent.ACTION_DOWN) {
-                                            rightPressCount++
-                                            if (rightPressCount >= 2) {
-                                                isEditMode = true
-                                                Toast.makeText(context, "Админ-режим активирован!", Toast.LENGTH_SHORT).show()
-                                            }
-                                            true
-                                        } else {
-                                            false
-                                        }
-                                    }
-                                    .clip(RoundedCornerShape(20.dp))
-                                    .background(if (isFocused) Color(0xFF2A444C) else Color(0x10FFFFFF))
-                                    .border(
-                                        width = if (isFocused) 3.dp else 1.dp,
-                                        color = if (isFocused) Color.White else Color(0x33FFFFFF),
-                                        shape = RoundedCornerShape(20.dp)
-                                    )
-                                    .clickable {
-                                        targetDockIndex = index
-                                        isPickerOpen = true
-                                    },
-                                contentAlignment = Alignment.Center
-                            ) {
+                            } else {
                                 Text("+", color = Color.White.copy(0.7f), fontSize = 32.sp, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
                     
+                    // КНОПКА ••• В АДМИН-РЕЖИМЕ
                     if (isEditMode) {
                         var isMoreFocused by remember { mutableStateOf(false) }
                         Box(
@@ -365,14 +309,8 @@ fun HumeHomeScreen() {
                                 .focusable()
                                 .clip(RoundedCornerShape(20.dp))
                                 .background(if (isMoreFocused) Color(0xFF333333) else Color(0xFF1C282D))
-                                .border(
-                                    width = if (isMoreFocused) 3.dp else 1.dp,
-                                    color = if (isMoreFocused) Color.White else Color(0x33FFFFFF),
-                                    shape = RoundedCornerShape(20.dp)
-                                )
-                                .clickable {
-                                    isDrawerOpen = true
-                                },
+                                .border(width = if (isMoreFocused) 3.dp else 1.dp, color = if (isMoreFocused) Color.White else Color(0x33FFFFFF), shape = RoundedCornerShape(20.dp))
+                                .clickable { isDrawerOpen = true },
                             contentAlignment = Alignment.Center
                         ) {
                             Text("•••", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
@@ -382,118 +320,23 @@ fun HumeHomeScreen() {
             }
         }
 
-        // ОКНО ВСЕХ ПРИЛОЖЕНИЙ (СТРОГАЯ ИЗОЛЯЦИЯ ФОКУСА)
+        // ОКНО ВСЕХ ПРИЛОЖЕНИЙ
         if (isDrawerOpen) {
-            Box(
-                Modifier.fillMaxSize()
-                    .background(Color(0xFA0A0A0A))
-                    .focusable(false) // Отключаем фокус подложки
-                    .padding(48.dp)
-            ) {
-                Column(Modifier.fillMaxSize()) {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        Text("Все приложения", color = Color.White, fontSize = 32.sp, fontWeight = FontWeight.Bold)
-                        
-                        var isCloseFocused by remember { mutableStateOf(false) }
-                        Box(
-                            modifier = Modifier
-                                .onFocusChanged { isCloseFocused = it.isFocused }
-                                .focusable()
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(if (isCloseFocused) Color(0x44FFFFFF) else Color.Transparent)
-                                .border(width = if (isCloseFocused) 2.dp else 0.dp, color = Color.White, shape = RoundedCornerShape(12.dp))
-                                .padding(horizontal = 12.dp, vertical = 6.dp)
-                                .clickable { isDrawerOpen = false }
-                        ) {
-                            Text("Закрыть ✕", color = Color.White, fontSize = 20.sp)
-                        }
-                    }
-                    Spacer(Modifier.height(24.dp))
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(6),
-                        horizontalArrangement = Arrangement.spacedBy(24.dp),
-                        verticalArrangement = Arrangement.spacedBy(24.dp),
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .focusable(false) // Сетка не берет фокус целиком, только элементы
-                    ) {
-                        itemsIndexed(allApps) { index, app ->
-                            HumeAppCard(
-                                app = app, 
-                                iconCache = iconCache, 
-                                onClick = { selectedAppForMenu = app },
-                                isLocked = lockedPackages.contains(app.packageName),
-                                autoFocus = (index == 0)
-                            )
-                        }
-                    }
-                }
+            AppGridModal(title = "Все приложения", apps = allApps, iconCache = iconCache, lockedPackages = lockedPackages, onClose = { isDrawerOpen = false }) { app ->
+                selectedAppForMenu = app
             }
         }
 
-        // ОКНО ВЫБОРА ПРИЛОЖЕНИЯ В ДОК (СТРОГАЯ ИЗОЛЯЦИЯ ФОКУСА)
+        // ОКНО ВЫБОРА В ДОК
         if (isPickerOpen) {
-            Box(
-                Modifier.fillMaxSize()
-                    .background(Color(0xCC000000))
-                    .focusable(false),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize(0.8f)
-                        .clip(RoundedCornerShape(24.dp))
-                        .background(Color(0xFF162B32))
-                        .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(24.dp))
-                        .focusable(false)
-                        .padding(32.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        Text("Выберите приложение в док", color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Bold)
-                        
-                        var isPickerCloseFocused by remember { mutableStateOf(false) }
-                        Box(
-                            modifier = Modifier
-                                .onFocusChanged { isPickerCloseFocused = it.isFocused }
-                                .focusable()
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(if (isPickerCloseFocused) Color(0x44FFFFFF) else Color.Transparent)
-                                .border(width = if (isPickerCloseFocused) 2.dp else 0.dp, color = Color.White, shape = RoundedCornerShape(12.dp))
-                                .padding(horizontal = 12.dp, vertical = 6.dp)
-                                .clickable { isPickerOpen = false }
-                        ) {
-                            Text("Закрыть ✕", color = Color.White, fontSize = 18.sp)
-                        }
-                    }
-                    Spacer(Modifier.height(24.dp))
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(5),
-                        horizontalArrangement = Arrangement.spacedBy(20.dp),
-                        verticalArrangement = Arrangement.spacedBy(20.dp),
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .focusable(false)
-                    ) {
-                        itemsIndexed(allApps) { index, app ->
-                            HumeAppCard(
-                                app = app,
-                                iconCache = iconCache,
-                                onClick = {
-                                    if (targetDockIndex in dockApps.indices) {
-                                        val list = dockApps.toMutableList()
-                                        list[targetDockIndex] = app
-                                        dockApps = list
-                                        saveDockToPrefs(dockApps)
-                                    }
-                                    isPickerOpen = false
-                                },
-                                isLocked = lockedPackages.contains(app.packageName),
-                                autoFocus = (index == 0)
-                            )
-                        }
-                    }
+            AppGridModal(title = "Выберите приложение в док", apps = allApps, iconCache = iconCache, lockedPackages = lockedPackages, isPicker = true, onClose = { isPickerOpen = false }) { app ->
+                if (targetDockIndex in dockApps.indices) {
+                    val list = dockApps.toMutableList()
+                    list[targetDockIndex] = app
+                    dockApps = list
+                    saveDockToPrefs(dockApps)
                 }
+                isPickerOpen = false
             }
         }
 
@@ -501,205 +344,215 @@ fun HumeHomeScreen() {
         selectedAppForMenu?.let { app ->
             val isInDock = dockApps.contains(app)
             val appIndex = dockApps.indexOf(app)
+            val isLocked = lockedPackages.contains(app.packageName)
 
-            Box(
-                Modifier.fillMaxSize()
-                    .background(Color(0xCC000000))
-                    .focusable(false),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(
-                    modifier = Modifier
-                        .width(340.dp)
-                        .clip(RoundedCornerShape(24.dp))
-                        .background(Color(0xFF162B32))
-                        .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(24.dp))
-                        .focusable(false)
-                        .padding(20.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(app.name, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.height(16.dp))
+            ModalContainer(onDismiss = { selectedAppForMenu = null }, width = 340.dp) {
+                Text(app.name, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(16.dp))
 
-                    val isLocked = lockedPackages.contains(app.packageName)
+                MenuButton("Запустить приложение") {
+                    selectedAppForMenu = null
+                    handleAppClick(app)
+                }
+                Spacer(Modifier.height(8.dp))
 
-                    MenuButton("Запустить приложение") {
-                        selectedAppForMenu = null
-                        handleAppClick(app)
-                    }
-                    Spacer(Modifier.height(8.dp))
-
-                    if (isInDock) {
-                        if (appIndex > 0) {
-                            MenuButton("← Сдвинуть влево") {
-                                val list = dockApps.toMutableList()
-                                val item = list.removeAt(appIndex)
-                                list.add(appIndex - 1, item)
-                                dockApps = list
-                                saveDockToPrefs(dockApps)
-                                selectedAppForMenu = null
-                            }
-                            Spacer(Modifier.height(8.dp))
-                        }
-                        if (appIndex < dockApps.size - 1) {
-                            MenuButton("Сдвинуть вправо →") {
-                                val list = dockApps.toMutableList()
-                                val item = list.removeAt(appIndex)
-                                list.add(appIndex + 1, item)
-                                dockApps = list
-                                saveDockToPrefs(dockApps)
-                                selectedAppForMenu = null
-                            }
-                            Spacer(Modifier.height(8.dp))
-                        }
-                        MenuButton("Убрать из дока", isRed = true) {
+                if (isInDock) {
+                    if (appIndex > 0) {
+                        MenuButton("← Сдвинуть влево") {
                             val list = dockApps.toMutableList()
-                            val idx = list.indexOf(app)
-                            if (idx != -1) list[idx] = null
+                            val item = list.removeAt(appIndex)
+                            list.add(appIndex - 1, item)
                             dockApps = list
                             saveDockToPrefs(dockApps)
                             selectedAppForMenu = null
                         }
                         Spacer(Modifier.height(8.dp))
-                    } else {
-                        MenuButton("Добавить в док") {
-                            val emptyIdx = dockApps.indexOf(null)
-                            if (emptyIdx != -1) {
-                                val list = dockApps.toMutableList()
-                                list[emptyIdx] = app
-                                dockApps = list
-                                saveDockToPrefs(dockApps)
-                            } else {
-                                Toast.makeText(context, "В доке нет свободных мест", Toast.LENGTH_SHORT).show()
-                            }
+                    }
+                    if (appIndex < dockApps.size - 1) {
+                        MenuButton("Сдвинуть вправо →") {
+                            val list = dockApps.toMutableList()
+                            val item = list.removeAt(appIndex)
+                            list.add(appIndex + 1, item)
+                            dockApps = list
+                            saveDockToPrefs(dockApps)
                             selectedAppForMenu = null
                         }
                         Spacer(Modifier.height(8.dp))
                     }
-
-                    MenuButton(if (isLocked) "Снять PIN-код" else "Заблокировать PIN") {
-                        val targetApp = app
+                    MenuButton("Убрать из дока", isRed = true) {
+                        val list = dockApps.toMutableList()
+                        val idx = list.indexOf(app)
+                        if (idx != -1) list[idx] = null
+                        dockApps = list
+                        saveDockToPrefs(dockApps)
                         selectedAppForMenu = null
-                        if (isLocked) {
-                            pendingAppAction = targetApp
-                            pinInput = ""
-                            showRemovePinDialog = true
+                    }
+                    Spacer(Modifier.height(8.dp))
+                } else {
+                    MenuButton("Добавить в док") {
+                        val emptyIdx = dockApps.indexOf(null)
+                        if (emptyIdx != -1) {
+                            val list = dockApps.toMutableList()
+                            list[emptyIdx] = app
+                            dockApps = list
+                            saveDockToPrefs(dockApps)
                         } else {
-                            if (savedPin.isEmpty()) {
-                                pendingAppAction = targetApp
-                                pinInput = ""
-                                showSetPinDialog = true
-                            } else {
-                                val newLocked = lockedPackages + targetApp.packageName
-                                saveLockedPackages(newLocked)
-                                Toast.makeText(context, "Приложение заблокировано", Toast.LENGTH_SHORT).show()
-                            }
+                            Toast.makeText(context, "В доке нет свободных мест", Toast.LENGTH_SHORT).show()
                         }
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    MenuButton("О приложении") {
-                        openAppInfo(context, app)
                         selectedAppForMenu = null
                     }
                     Spacer(Modifier.height(8.dp))
-                    MenuButton("Отмена") {
-                        selectedAppForMenu = null
-                    }
                 }
-            }
-        }
 
-        // Диалоги PIN
-        if (showSetPinDialog) {
-            Box(Modifier.fillMaxSize().background(Color(0xCC000000)).focusable(false), contentAlignment = Alignment.Center) {
-                Column(
-                    modifier = Modifier.width(320.dp).clip(RoundedCornerShape(24.dp)).background(Color(0xFF162B32)).border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(24.dp)).focusable(false).padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text("Придумайте свой PIN-код", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.height(16.dp))
-                    androidx.compose.material3.OutlinedTextField(
-                        value = pinInput, onValueChange = { pinInput = it }, label = { Text("Ваш PIN-код") }, singleLine = true, visualTransformation = PasswordVisualTransformation()
-                    )
-                    Spacer(Modifier.height(16.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        MenuButton("Сохранить", modifier = Modifier.weight(1f)) {
-                            if (pinInput.isNotEmpty()) {
-                                savePinCode(pinInput)
-                                pendingAppAction?.let { 
-                                    val newLocked = lockedPackages + it.packageName
-                                    saveLockedPackages(newLocked)
-                                }
-                                showSetPinDialog = false
-                                pendingAppAction = null
-                                Toast.makeText(context, "PIN установлен!", Toast.LENGTH_SHORT).show()
-                            }
+                MenuButton(if (isLocked) "Снять PIN-код" else "Заблокировать PIN") {
+                    pendingAppAction = app
+                    selectedAppForMenu = null
+                    if (isLocked) {
+                        pinInput = ""
+                        pinDialogType = PinDialogType.REMOVE
+                    } else {
+                        if (savedPin.isEmpty()) {
+                            pinInput = ""
+                            pinDialogType = PinDialogType.SET
+                        } else {
+                            saveLockedPackages(lockedPackages + app.packageName)
+                            Toast.makeText(context, "Приложение заблокировано", Toast.LENGTH_SHORT).show()
                         }
-                        MenuButton("Отмена", modifier = Modifier.weight(1f)) { showSetPinDialog = false; pendingAppAction = null }
                     }
                 }
+                Spacer(Modifier.height(8.dp))
+                MenuButton("О приложении") {
+                    openAppInfo(context, app)
+                    selectedAppForMenu = null
+                }
+                Spacer(Modifier.height(8.dp))
+                MenuButton("Отмена") { selectedAppForMenu = null }
             }
         }
 
-        if (showEnterPinDialog && pendingAppAction != null) {
-            Box(Modifier.fillMaxSize().background(Color(0xCC000000)).focusable(false), contentAlignment = Alignment.Center) {
-                Column(
-                    modifier = Modifier.width(320.dp).clip(RoundedCornerShape(24.dp)).background(Color(0xFF162B32)).border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(24.dp)).focusable(false).padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text("Введите ваш PIN-код", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        // УНИВЕРСАЛЬНЫЙ ДИАЛОГ PIN-КОДА (Один вместо трех!)
+        if (pinDialogType != PinDialogType.NONE) {
+            val title = when(pinDialogType) {
+                PinDialogType.SET -> "Придумайте свой PIN-код"
+                PinDialogType.ENTER -> "Введите ваш PIN-код"
+                PinDialogType.REMOVE -> "Введите PIN для снятия блока"
+                else -> ""
+            }
+            ModalContainer(onDismiss = { pinDialogType = PinDialogType.NONE; pendingAppAction = null }, width = 320.dp) {
+                Text(title, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                if (pinDialogType == PinDialogType.ENTER && pendingAppAction != null) {
                     Spacer(Modifier.height(8.dp))
                     Text(pendingAppAction!!.name, color = Color.White.copy(0.7f), fontSize = 14.sp)
-                    Spacer(Modifier.height(16.dp))
-                    androidx.compose.material3.OutlinedTextField(
-                        value = pinInput, onValueChange = { pinInput = it }, label = { Text("PIN-код") }, singleLine = true, visualTransformation = PasswordVisualTransformation()
-                    )
-                    Spacer(Modifier.height(16.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        MenuButton("ОК", modifier = Modifier.weight(1f)) {
-                            if (pinInput == savedPin) {
-                                openApp(context, pendingAppAction!!)
-                                showEnterPinDialog = false
-                                pendingAppAction = null
-                            } else {
-                                Toast.makeText(context, "Неверный PIN!", Toast.LENGTH_SHORT).show()
+                }
+                Spacer(Modifier.height(16.dp))
+                OutlinedTextField(
+                    value = pinInput, onValueChange = { pinInput = it }, label = { Text("PIN-код") }, singleLine = true, visualTransformation = PasswordVisualTransformation()
+                )
+                Spacer(Modifier.height(16.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    MenuButton("ОК / Сохранить", modifier = Modifier.weight(1f)) {
+                        when (pinDialogType) {
+                            PinDialogType.SET -> {
+                                if (pinInput.isNotEmpty()) {
+                                    savePinCode(pinInput)
+                                    pendingAppAction?.let { saveLockedPackages(lockedPackages + it.packageName) }
+                                    Toast.makeText(context, "PIN установлен!", Toast.LENGTH_SHORT).show()
+                                    pinDialogType = PinDialogType.NONE
+                                    pendingAppAction = null
+                                }
                             }
+                            PinDialogType.ENTER -> {
+                                if (pinInput == savedPin && pendingAppAction != null) {
+                                    openApp(context, pendingAppAction!!)
+                                    pinDialogType = PinDialogType.NONE
+                                    pendingAppAction = null
+                                } else {
+                                    Toast.makeText(context, "Неверный PIN!", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                            PinDialogType.REMOVE -> {
+                                if (pinInput == savedPin && pendingAppAction != null) {
+                                    saveLockedPackages(lockedPackages - pendingAppAction!!.packageName)
+                                    Toast.makeText(context, "Блокировка снята", Toast.LENGTH_SHORT).show()
+                                    pinDialogType = PinDialogType.NONE
+                                    pendingAppAction = null
+                                } else {
+                                    Toast.makeText(context, "Неверный PIN!", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                            else -> {}
                         }
-                        MenuButton("Отмена", modifier = Modifier.weight(1f)) { showEnterPinDialog = false; pendingAppAction = null }
+                    }
+                    MenuButton("Отмена", modifier = Modifier.weight(1f)) {
+                        pinDialogType = PinDialogType.NONE
+                        pendingAppAction = null
                     }
                 }
             }
         }
+    }
+}
 
-        if (showRemovePinDialog && pendingAppAction != null) {
-            Box(Modifier.fillMaxSize().background(Color(0xCC000000)).focusable(false), contentAlignment = Alignment.Center) {
-                Column(
-                    modifier = Modifier.width(320.dp).clip(RoundedCornerShape(24.dp)).background(Color(0xFF162B32)).border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(24.dp)).focusable(false).padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+enum class PinDialogType { NONE, SET, ENTER, REMOVE }
+
+@Composable
+fun AppGridModal(title: String, apps: List<AppInfo>, iconCache: MutableMap<String, ImageBitmap>, lockedPackages: Set<String>, isPicker: Boolean = false, onClose: () -> Unit, onAppClick: (AppInfo) -> Unit) {
+    Box(
+        Modifier.fillMaxSize().background(Color(if (isPicker) 0xCC000000 else 0xFA0A0A0A)).focusable(false),
+        contentAlignment = if (isPicker) Alignment.Center else Alignment.TopStart
+    ) {
+        Column(
+            modifier = Modifier
+                .let { if (isPicker) it.fillMaxSize(0.8f).clip(RoundedCornerShape(24.dp)).background(Color(0xFF162B32)).border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(24.dp)).padding(32.dp) else it.fillMaxSize().padding(48.dp) }
+                .focusable(false),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text(title, color = Color.White, fontSize = if (isPicker) 26.sp else 32.sp, fontWeight = FontWeight.Bold)
+                
+                var isCloseFocused by remember { mutableStateOf(false) }
+                Box(
+                    modifier = Modifier
+                        .onFocusChanged { isCloseFocused = it.isFocused }
+                        .focusable()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (isCloseFocused) Color(0x44FFFFFF) else Color.Transparent)
+                        .border(width = if (isCloseFocused) 2.dp else 0.dp, color = Color.White, shape = RoundedCornerShape(12.dp))
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                        .clickable { onClose() }
                 ) {
-                    Text("Введите PIN для снятия блока", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.height(16.dp))
-                    androidx.compose.material3.OutlinedTextField(
-                        value = pinInput, onValueChange = { pinInput = it }, label = { Text("PIN-код") }, singleLine = true, visualTransformation = PasswordVisualTransformation()
+                    Text("Закрыть ✕", color = Color.White, fontSize = if (isPicker) 18.sp else 20.sp)
+                }
+            }
+            Spacer(Modifier.height(24.dp))
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(if (isPicker) 5 else 6),
+                horizontalArrangement = Arrangement.spacedBy(if (isPicker) 20.dp else 24.dp),
+                verticalArrangement = Arrangement.spacedBy(if (isPicker) 20.dp else 24.dp),
+                modifier = Modifier.fillMaxSize().focusable(false)
+            ) {
+                itemsIndexed(apps) { index, app ->
+                    HumeAppCard(
+                        app = app, 
+                        iconCache = iconCache, 
+                        onClick = { onAppClick(app) },
+                        isLocked = lockedPackages.contains(app.packageName),
+                        autoFocus = (index == 0)
                     )
-                    Spacer(Modifier.height(16.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        MenuButton("Снять", modifier = Modifier.weight(1f)) {
-                            if (pinInput == savedPin) {
-                                val newLocked = lockedPackages - pendingAppAction!!.packageName
-                                saveLockedPackages(newLocked)
-                                showRemovePinDialog = false
-                                pendingAppAction = null
-                                Toast.makeText(context, "Блокировка снята", Toast.LENGTH_SHORT).show()
-                            } else {
-                                Toast.makeText(context, "Неверный PIN!", Toast.LENGTH_SHORT).show()
-                            }
-                        }
-                        MenuButton("Отмена", modifier = Modifier.weight(1f)) { showRemovePinDialog = false; pendingAppAction = null }
-                    }
                 }
             }
         }
+    }
+}
+
+@Composable
+fun ModalContainer(onDismiss: () -> Unit, width: androidx.compose.ui.unit.Dp, content: @Composable ColumnScope.() -> Unit) {
+    Box(Modifier.fillMaxSize().background(Color(0xCC000000)).focusable(false), contentAlignment = Alignment.Center) {
+        Column(
+            modifier = Modifier.width(width).clip(RoundedCornerShape(24.dp)).background(Color(0xFF162B32)).border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(24.dp)).focusable(false).padding(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            content = content
+        )
     }
 }
 
@@ -782,6 +635,6 @@ fun openAppInfo(context: Context, app: AppInfo) {
             data = Uri.parse("package:${app.packageName}")
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         })
-    } catch (_: Exception) { Toast.NotFoundException().printStackTrace() }
+    } catch (_: Exception) { Toast.makeText(context, "Ошибка настроек", Toast.LENGTH_SHORT).show() }
 }
 
