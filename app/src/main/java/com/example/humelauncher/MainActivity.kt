@@ -26,7 +26,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap // <-- ДОБАВЛЕН ИМПОРТ
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -72,13 +73,12 @@ fun HumeHomeScreen() {
         allApps = apps.sortedBy { it.name }
     }
 
+    // Глубокий фон с радиальным свечением
     Box(Modifier.fillMaxSize().background(
-        Brush.linearGradient(
-            colors = listOf(
-                Color(0xFF0F2027),
-                Color(0xFF203A43),
-                Color(0xFF2C5364)
-            )
+        Brush.radialGradient(
+            colors = listOf(Color(0xFF144D59), Color(0xFF071B22), Color(0xFF000000)),
+            center = androidx.compose.ui.geometry.Offset(1000f, 1000f),
+            radius = 2500f
         )
     )) {
         if (allApps.isEmpty()) {
@@ -86,7 +86,7 @@ fun HumeHomeScreen() {
                 Text("Загрузка...", color = Color.White, fontSize = 24.sp)
             }
         } else {
-            // Верхняя панель
+            // ВЕРХНЯЯ ПАНЕЛЬ
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 48.dp, vertical = 32.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -95,98 +95,123 @@ fun HumeHomeScreen() {
                 // Погода
                 Row(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(24.dp))
-                        .background(Color(0x33FFFFFF))
-                        .border(1.dp, Color(0x44FFFFFF), RoundedCornerShape(24.dp))
-                        .padding(horizontal = 20.dp, vertical = 10.dp),
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(Color(0x22FFFFFF))
+                        .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(20.dp))
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("☁️", fontSize = 20.sp)
-                    Spacer(Modifier.width(12.dp))
+                    Text("☁️", fontSize = 18.sp)
+                    Spacer(Modifier.width(8.dp))
                     Column {
-                        Text("8° London", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                        Text("Cloudy", color = Color.White.copy(0.7f), fontSize = 12.sp)
+                        Text("8° London", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        Text("Cloudy", color = Color.White.copy(0.6f), fontSize = 11.sp)
                     }
                 }
 
                 // Время и кнопки
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Text(currentTime, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Medium)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(currentTime, color = Color.White.copy(0.9f), fontSize = 18.sp, fontWeight = FontWeight.Medium)
+                    Spacer(Modifier.width(8.dp))
                     
-                    Box(Modifier.size(44.dp).clip(CircleShape).background(Color(0x33FFFFFF)).border(1.dp, Color(0x44FFFFFF), CircleShape), contentAlignment = Alignment.Center) {
-                        Text("⚙️", fontSize = 18.sp)
+                    Box(Modifier.size(36.dp).clip(CircleShape).background(Color(0x22FFFFFF)).border(1.dp, Color(0x33FFFFFF), CircleShape), contentAlignment = Alignment.Center) {
+                        Text("⚙️", fontSize = 14.sp)
                     }
-                    Box(Modifier.size(44.dp).clip(CircleShape).background(Color(0x33FFFFFF)).border(1.dp, Color(0x44FFFFFF), CircleShape), contentAlignment = Alignment.Center) {
-                        Text("🔍", fontSize = 18.sp)
+                    Box(Modifier.size(36.dp).clip(CircleShape).background(Color(0x22FFFFFF)).border(1.dp, Color(0x33FFFFFF), CircleShape), contentAlignment = Alignment.Center) {
+                        Text("🔍", fontSize = 14.sp)
                     }
-                    Box(Modifier.size(44.dp).clip(CircleShape).background(Color(0x33FFFFFF)).border(1.dp, Color(0x44FFFFFF), CircleShape), contentAlignment = Alignment.Center) {
-                        Text("👤", fontSize = 18.sp)
+                    Box(Modifier.size(36.dp).clip(CircleShape).background(Color(0x22FFFFFF)).border(1.dp, Color(0x33FFFFFF), CircleShape), contentAlignment = Alignment.Center) {
+                        Text("👤", fontSize = 14.sp)
                     }
                 }
             }
 
-            // Сетка приложений
+            // СЕТКА ПРИЛОЖЕНИЙ
             LazyVerticalGrid(
                 columns = GridCells.Fixed(6),
-                modifier = Modifier.fillMaxSize().padding(top = 80.dp, bottom = 220.dp, start = 64.dp, end = 64.dp),
-                horizontalArrangement = Arrangement.spacedBy(32.dp),
+                modifier = Modifier.fillMaxSize().padding(top = 100.dp, bottom = 200.dp, start = 64.dp, end = 64.dp),
+                horizontalArrangement = Arrangement.spacedBy(24.dp),
                 verticalArrangement = Arrangement.spacedBy(32.dp)
             ) {
-                itemsIndexed(allApps.take(11)) { index, app ->
+                itemsIndexed(allApps.take(12)) { index, app ->
                     HumeAppCard(app = app, iconCache = iconCache, onClick = { openApp(context, app) })
-                }
-                if (allApps.size > 11) {
-                    item { HumeMoreAppsCard { isDrawerOpen = true } }
                 }
             }
 
-            // Док (Liquid Glass)
+            // НОВЫЙ ДОК (КАК НА СКРИНШОТЕ APPLE TV)
             Box(
                 Modifier.align(Alignment.BottomCenter)
-                    .padding(bottom = 32.dp)
-                    .fillMaxWidth(0.85f)
-                    .height(140.dp)
+                    .padding(bottom = 20.dp)
+                    .fillMaxWidth(0.95f) // Широкий док
+                    .height(150.dp)      // Высокий
                     .clip(RoundedCornerShape(32.dp))
-                    .background(Color(0x22FFFFFF))
-                    .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(32.dp)),
+                    .background(Color(0x11FFFFFF)) // Легкая прозрачность
+                    .border(1.dp, Color(0x22FFFFFF), RoundedCornerShape(32.dp)),
                 contentAlignment = Alignment.Center
             ) {
                 Row(
-                    modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp),
+                    modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 20.dp),
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    allApps.take(5).forEach { app ->
+                    // Первые 5 приложений в виде плиток
+                    allApps.take(5).forEachIndexed { index, app ->
+                        // Цвета плиток для красоты (как на скрине: фиолетовый, желтый, зеленый...)
+                        val colors = listOf(
+                            Color(0xFF6A4CFF), // Фиолетовый
+                            Color(0xFFD4C585), // Золотистый
+                            Color(0xFF2B50FF), // Синий
+                            Color(0xFFBCE81A), // Лаймовый
+                            Color(0xFFF2B705)  // Желтый
+                        )
+                        val tileColor = colors[index % colors.size]
+
                         Box(
                             modifier = Modifier
                                 .weight(1f)
-                                .fillMaxHeight(0.75f)
-                                .clip(RoundedCornerShape(16.dp))
-                                .background(Color.White)
+                                .fillMaxHeight()
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(tileColor)
                                 .clickable { openApp(context, app) },
                             contentAlignment = Alignment.Center
                         ) {
                             val bmp = iconCache[app.packageName] ?: app.icon.toBitmap().asImageBitmap().also { iconCache[app.packageName] = it }
-                            Image(bitmap = bmp, contentDescription = app.name, modifier = Modifier.size(64.dp))
+                            Image(
+                                bitmap = bmp, 
+                                contentDescription = app.name, 
+                                modifier = Modifier.fillMaxSize(0.8f), // Иконка чуть меньше плитки
+                                contentScale = ContentScale.Fit
+                            )
                         }
                     }
+                    
+                    // Кнопка "Ещё" (в правом углу, светло-желтая)
                     Box(
                         modifier = Modifier
                             .weight(1f)
-                            .fillMaxHeight(0.75f)
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(Color(0x33FFFFFF))
-                            .border(1.dp, Color(0x44FFFFFF), RoundedCornerShape(16.dp))
+                            .fillMaxHeight()
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(Color(0xFFF2B705))
                             .clickable { isDrawerOpen = true },
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("•••", color = Color.White, fontSize = 32.sp, fontWeight = FontWeight.Bold)
+                        Text("•••", color = Color.Black, fontSize = 32.sp, fontWeight = FontWeight.Bold)
                     }
+                }
+                
+                // Стрелочка вверх по центру над доком
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .offset(y = (-20).dp)
+                        .clickable { isDrawerOpen = true }
+                ) {
+                    Text("^", color = Color.White.copy(0.7f), fontSize = 24.sp)
                 }
             }
         }
 
-        // Экран всех приложений
+        // ЭКРАН ВСЕХ ПРИЛОЖЕНИЙ
         if (isDrawerOpen) {
             Box(Modifier.fillMaxSize().background(Color(0xFA0A0A0A)).padding(48.dp)) {
                 Column {
