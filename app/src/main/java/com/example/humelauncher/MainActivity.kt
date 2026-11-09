@@ -322,7 +322,7 @@ fun HumeHomeScreen() {
             }
         }
 
-        // ОКНО ВЫБОРА В ДОК (С ПЛОТНЫМ ФОНОМ И СТРОГОЙ РАМКОЙ)
+        // ОКНО ВЫБОРА В ДОК (С РАМКОЙ И БЛОКИРОВКОЙ ФОКУСА)
         if (isPickerOpen) {
             AppGridModal(title = "Выберите приложение в док", apps = allApps, iconCache = iconCache, lockedPackages = lockedPackages, isPicker = true, onClose = { isPickerOpen = false }) { app ->
                 if (targetDockIndex in dockApps.indices) {
@@ -492,9 +492,11 @@ enum class PinDialogType { NONE, SET, ENTER, REMOVE }
 
 @Composable
 fun AppGridModal(title: String, apps: List<AppInfo>, iconCache: MutableMap<String, ImageBitmap>, lockedPackages: Set<String>, isPicker: Boolean = false, onClose: () -> Unit, onAppClick: (AppInfo) -> Unit) {
-    // Плотный непрозрачный фон для полного перекрытия главного экрана
+    // Непрозрачный контейнер с жестким фокусом, чтобы запереть пульт внутри
     Box(
-        Modifier.fillMaxSize().background(Color(0xFF071B22)).focusable(false),
+        Modifier.fillMaxSize()
+            .background(Color(0xFF071B22))
+            .focusable(true),
         contentAlignment = if (isPicker) Alignment.Center else Alignment.TopStart
     ) {
         Column(
@@ -504,13 +506,13 @@ fun AppGridModal(title: String, apps: List<AppInfo>, iconCache: MutableMap<Strin
                         it.fillMaxSize(0.8f)
                           .clip(RoundedCornerShape(24.dp))
                           .background(Color(0xFF162B32))
-                          .border(2.dp, Color(0xFF33FFFF), RoundedCornerShape(24.dp)) // Яркая рамка вокруг окна выбора
+                          .border(2.dp, Color(0xFF33FFFF), RoundedCornerShape(24.dp)) // Четкая видимая рамка вокруг окна
                           .padding(32.dp)
                     } else {
                         it.fillMaxSize().padding(48.dp)
                     }
                 }
-                .focusable(false),
+                .focusable(true),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -535,7 +537,7 @@ fun AppGridModal(title: String, apps: List<AppInfo>, iconCache: MutableMap<Strin
                 columns = GridCells.Fixed(if (isPicker) 5 else 6),
                 horizontalArrangement = Arrangement.spacedBy(if (isPicker) 20.dp else 24.dp),
                 verticalArrangement = Arrangement.spacedBy(if (isPicker) 20.dp else 24.dp),
-                modifier = Modifier.fillMaxSize().focusable(false)
+                modifier = Modifier.fillMaxSize().focusable(true)
             ) {
                 itemsIndexed(apps) { index, app ->
                     HumeAppCard(
@@ -553,9 +555,20 @@ fun AppGridModal(title: String, apps: List<AppInfo>, iconCache: MutableMap<Strin
 
 @Composable
 fun ModalContainer(onDismiss: () -> Unit, width: androidx.compose.ui.unit.Dp, content: @Composable ColumnScope.() -> Unit) {
-    Box(Modifier.fillMaxSize().background(Color(0xCC000000)).focusable(false), contentAlignment = Alignment.Center) {
+    Box(
+        Modifier.fillMaxSize()
+            .background(Color(0xCC000000))
+            .focusable(true),
+        contentAlignment = Alignment.Center
+    ) {
         Column(
-            modifier = Modifier.width(width).clip(RoundedCornerShape(24.dp)).background(Color(0xFF162B32)).border(2.dp, Color(0xFF33FFFF), RoundedCornerShape(24.dp)).focusable(false).padding(20.dp),
+            modifier = Modifier
+                .width(width)
+                .clip(RoundedCornerShape(24.dp))
+                .background(Color(0xFF162B32))
+                .border(2.dp, Color(0xFF33FFFF), RoundedCornerShape(24.dp)) // Четкая рамка для всех диалогов и меню
+                .focusable(true)
+                .padding(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             content = content
         )
