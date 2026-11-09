@@ -539,7 +539,7 @@ fun AppGridModal(title: String, apps: List<AppInfo>, iconCache: MutableMap<Strin
             }
             Spacer(Modifier.height(16.dp))
             
-            // ЖЕСТКАЯ БЛОКИРОВКА ФОКУСА ВО ВСЕХ СЕТКАХ (Picker и Drawer)
+            // Надежная фиксация фокуса внутри сетки без ошибок компиляции
             LazyVerticalGrid(
                 columns = GridCells.Fixed(if (isPicker) 5 else 6),
                 horizontalArrangement = Arrangement.spacedBy(if (isPicker) 16.dp else 24.dp),
@@ -548,9 +548,7 @@ fun AppGridModal(title: String, apps: List<AppInfo>, iconCache: MutableMap<Strin
                     .fillMaxSize()
                     .focusable(true)
                     .focusProperties {
-                        up = focusRequester { closeButtonRequester.requestFocus() }
-                        // Блокируем уход фокуса в пустоту по краям сетки
-                        left = focusRequester { FocusRequester.Cancel }
+                        up = closeButtonRequester
                     }
             ) {
                 itemsIndexed(apps) { index, app ->
