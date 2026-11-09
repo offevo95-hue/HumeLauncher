@@ -62,13 +62,16 @@ fun HumeHomeScreen() {
     val context = LocalContext.current
     var allApps by remember { mutableStateOf<List<AppInfo>>(emptyList()) }
     
-    // Док с 5 слотами (могут быть приложения или null для плюсика)
+    // Док с 5 слотами
     var dockApps by remember { mutableStateOf<MutableList<AppInfo?>>(mutableListOf(null, null, null, null, null)) }
     
     var currentTime by remember { mutableStateOf("") }
     var isDrawerOpen by remember { mutableStateOf(false) }
     var isPickerOpen by remember { mutableStateOf(false) }
     var targetDockIndex by remember { mutableIntStateOf(-1) }
+    
+    // Переменные для отслеживания двойного нажатия (секретный жест)
+    var lastClickTime by remember { mutableLongStateOf(0L) }
     
     var selectedAppForMenu by remember { mutableStateOf<AppInfo?>(null) }
     var lockedPackages by remember { mutableStateOf(setOf<String>()) }
@@ -136,9 +139,16 @@ fun HumeHomeScreen() {
                 Text("Загрузка приложений...", color = Color.White, fontSize = 24.sp)
             }
         } else {
-            // ВЕРХНЯЯ ПАНЕЛЬ
+            // ВЕРХНЯЯ ПАНЕЛЬ (с секретным двойным кликом по зоне часов/погоды для открытия меню)
             Row(
-                Modifier.fillMaxWidth().padding(horizontal = 48.dp, vertical = 32.dp),
+                Modifier.fillMaxWidth().padding(horizontal = 48.dp, vertical = 32.dp).clickable {
+                    val currentTimeMillis = System.currentTimeMillis()
+                    if (currentTimeMillis - lastClickTime < 600) {
+                        // Двойное нажатие за полсекунды — открываем скрытое меню всех приложений!
+                        isDrawerOpen = true
+                    }
+                    lastClickTime = currentTimeMillis
+                },
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -174,7 +184,7 @@ fun HumeHomeScreen() {
                 }
             }
 
-            // НИЖНИЙ ДОК
+            // НИЖНИЙ ДОК (ЧИСТЫЙ, БЕЗ КНОПКИ ТРИ ТОЧКИ)
             Box(
                 Modifier.align(Alignment.BottomCenter)
                     .padding(bottom = 20.dp)
@@ -196,7 +206,7 @@ fun HumeHomeScreen() {
                         if (app != null) {
                             Box(
                                 modifier = Modifier
-                                    .weight(1.3f)
+                                    .weight(1f)
                                     .fillMaxHeight()
                                     .onFocusChanged { isFocused = it.isFocused }
                                     .focusable()
@@ -238,7 +248,7 @@ fun HumeHomeScreen() {
                         } else {
                             Box(
                                 modifier = Modifier
-                                    .weight(1.3f)
+                                    .weight(1f)
                                     .fillMaxHeight()
                                     .onFocusChanged { isFocused = it.isFocused }
                                     .focusable()
@@ -259,40 +269,11 @@ fun HumeHomeScreen() {
                             }
                         }
                     }
-                    
-                    var isMoreFocused by remember { mutableStateOf(false) }
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                            .onFocusChanged { isMoreFocused = it.isFocused }
-                            .focusable()
-                            .clip(RoundedCornerShape(20.dp))
-                            .background(if (isMoreFocused) Color(0xFF333333) else Color(0xFF1C282D))
-                            .border(
-                                width = if (isMoreFocused) 3.dp else 1.dp,
-                                color = if (isMoreFocused) Color.White else Color(0x33FFFFFF),
-                                shape = RoundedCornerShape(20.dp)
-                            )
-                            .clickable { isDrawerOpen = true },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text("•••", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
-                    }
-                }
-                
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .offset(y = (-18).dp)
-                        .clickable { isDrawerOpen = true }
-                ) {
-                    Text("^", color = Color.White.copy(0.7f), fontSize = 24.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
 
-        // ЭКРАН ВСЕХ ПРИЛОЖЕНИЙ
+        // СКРЫТЫЙ ЭКРАН ВСЕХ ПРИЛОЖЕНИЙ (ВЫЗЫВАЕТСЯ ДВОЙНЫМ КЛИКОМ)
         if (isDrawerOpen) {
             Box(Modifier.fillMaxSize().background(Color(0xFA0A0A0A)).padding(48.dp)) {
                 Column {
@@ -577,7 +558,7 @@ fun MenuButton(text: String, isRed: Boolean = false, modifier: Modifier = Modifi
 @Composable
 fun HumeAppCard(app: AppInfo, iconCache: MutableMap<String, ImageBitmap>, onClick: () -> Unit, isLocked: Boolean) {
     var isFocused by remember { mutableStateOf(false) }
-    val bmp = iconCache[app.packageName] ?: app.icon.toBitmap().asImageBitmap().also { iconCache[app.packageName] = it }
+    val bmp = iconCache[app.packageName] getDataOrFetch app.icon.toBitmap().asImageBitmap().also { iconCache[app.packageName] = it }
 
     Box(
         modifier = Modifier
@@ -623,10 +604,10 @@ fun openApp(context: Context, app: AppInfo) {
 
 fun openAppInfo(context: Context, app: AppInfo) {
     try {
-        context.startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+        context.startActivity(Intent(android.1provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
             data = Uri.parse("package:${app.packageName}")
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         })
-    } catch (_: Exception) { Toast.makeText(context, "Ошибка настроек", Toast.LENGTH_SHORT).show() }
+    } catch (_: Exception) { Toast.makeText(context, "Ошибка настроек", Toast.CHART_SHORT).show() }
 }
 
