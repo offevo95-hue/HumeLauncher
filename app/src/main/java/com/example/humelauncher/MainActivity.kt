@@ -68,13 +68,7 @@ fun HumeHomeScreen() {
     val prefs: SharedPreferences = remember { context.getSharedPreferences("HumeLauncherPrefs", Context.MODE_PRIVATE) }
 
     var allApps by remember { mutableStateOf<List<AppInfo>>(emptyList()) }
-    
-    // Загрузка сохраненного дока из SharedPreferences
-    var dockApps by remember { 
-        mutableStateOf<MutableList<AppInfo?>>(
-            mutableListOf(null, null, null, null, null)
-        ) 
-    }
+    var dockApps by remember { mutableStateOf<MutableList<AppInfo?>>(mutableListOf(null, null, null, null, null)) }
     
     var currentTime by remember { mutableStateOf("") }
     var isDrawerOpen by remember { mutableStateOf(false) }     
@@ -83,13 +77,9 @@ fun HumeHomeScreen() {
     var isEditMode by remember { mutableStateOf(false) }       
     
     var rightPressCount by remember { mutableIntStateOf(0) }
-    
     var selectedAppForMenu by remember { mutableStateOf<AppInfo?>(null) }
     
-    // Загрузка заблокированных приложений и PIN-кода
-    var lockedPackages by remember { 
-        mutableStateOf(prefs.getStringSet("locked_packages", emptySet()) ?: emptySet()) 
-    }
+    var lockedPackages by remember { mutableStateOf(prefs.getStringSet("locked_packages", emptySet()) ?: emptySet()) }
     var savedPin by remember { mutableStateOf(prefs.getString("saved_pin", "") ?: "") }
     var pinInput by remember { mutableStateOf("") }
     
@@ -100,7 +90,6 @@ fun HumeHomeScreen() {
 
     val iconCache = remember { mutableStateMapOf<String, ImageBitmap>() }
 
-    // Функция сохранения дока в память
     val saveDockToPrefs = { currentDock: List<AppInfo?> ->
         val editor = prefs.edit()
         currentDock.forEachIndexed { idx, app ->
@@ -117,13 +106,11 @@ fun HumeHomeScreen() {
         editor.apply()
     }
 
-    // Функция сохранения заблокированных пакетов
     val saveLockedPackages = { locked: Set<String> ->
         prefs.edit().putStringSet("locked_packages", locked).apply()
         lockedPackages = locked
     }
 
-    // Функция сохранения PIN-кода
     val savePinCode = { pin: String ->
         prefs.edit().putString("saved_pin", pin).apply()
         savedPin = pin
@@ -149,7 +136,6 @@ fun HumeHomeScreen() {
         }
     }
 
-    // Загрузка приложений и восстановление сохраненного дока
     LaunchedEffect(Unit) {
         val apps = withContext(Dispatchers.IO) { getAllApps(context) }
         allApps = apps.sortedBy { it.name }
@@ -162,7 +148,6 @@ fun HumeHomeScreen() {
             val cls = prefs.getString("dock_cls_$i", null)
             val name = prefs.getString("dock_name_$i", null)
             if (pkg != null && cls != null && name != null) {
-                // Ищем иконку из актуального списка приложений
                 val foundApp = apps.find { it.packageName == pkg }
                 if (foundApp != null) {
                     restoredDock[i] = foundApp
@@ -397,12 +382,12 @@ fun HumeHomeScreen() {
             }
         }
 
-        // ОКНО ВСЕХ ПРИЛОЖЕНИЙ (ЖЕСТКО С ЦИКЛИЧНЫМ ФОКУСОМ)
+        // ОКНО ВСЕХ ПРИЛОЖЕНИЙ (СТРОГАЯ ИЗОЛЯЦИЯ ФОКУСА)
         if (isDrawerOpen) {
             Box(
                 Modifier.fillMaxSize()
                     .background(Color(0xFA0A0A0A))
-                    .focusable() // Блокируем уход фокуса наружу
+                    .focusable(false) // Отключаем фокус подложки
                     .padding(48.dp)
             ) {
                 Column(Modifier.fillMaxSize()) {
@@ -428,7 +413,9 @@ fun HumeHomeScreen() {
                         columns = GridCells.Fixed(6),
                         horizontalArrangement = Arrangement.spacedBy(24.dp),
                         verticalArrangement = Arrangement.spacedBy(24.dp),
-                        modifier = Modifier.fillMaxSize().focusable()
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .focusable(false) // Сетка не берет фокус целиком, только элементы
                     ) {
                         itemsIndexed(allApps) { index, app ->
                             HumeAppCard(
@@ -444,12 +431,12 @@ fun HumeHomeScreen() {
             }
         }
 
-        // ОКНО ВЫБОРА ПРИЛОЖЕНИЯ В ДОК (ЖЕСТКО С ЦИКЛИЧНЫМ ФОКУСОМ)
+        // ОКНО ВЫБОРА ПРИЛОЖЕНИЯ В ДОК (СТРОГАЯ ИЗОЛЯЦИЯ ФОКУСА)
         if (isPickerOpen) {
             Box(
                 Modifier.fillMaxSize()
                     .background(Color(0xCC000000))
-                    .focusable(), // Блокируем уход фокуса наружу
+                    .focusable(false),
                 contentAlignment = Alignment.Center
             ) {
                 Column(
@@ -458,7 +445,7 @@ fun HumeHomeScreen() {
                         .clip(RoundedCornerShape(24.dp))
                         .background(Color(0xFF162B32))
                         .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(24.dp))
-                        .focusable()
+                        .focusable(false)
                         .padding(32.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
@@ -484,7 +471,9 @@ fun HumeHomeScreen() {
                         columns = GridCells.Fixed(5),
                         horizontalArrangement = Arrangement.spacedBy(20.dp),
                         verticalArrangement = Arrangement.spacedBy(20.dp),
-                        modifier = Modifier.fillMaxSize().focusable()
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .focusable(false)
                     ) {
                         itemsIndexed(allApps) { index, app ->
                             HumeAppCard(
@@ -495,7 +484,7 @@ fun HumeHomeScreen() {
                                         val list = dockApps.toMutableList()
                                         list[targetDockIndex] = app
                                         dockApps = list
-                                        saveDockToPrefs(dockApps) // Сохраняем при изменении
+                                        saveDockToPrefs(dockApps)
                                     }
                                     isPickerOpen = false
                                 },
@@ -516,7 +505,7 @@ fun HumeHomeScreen() {
             Box(
                 Modifier.fillMaxSize()
                     .background(Color(0xCC000000))
-                    .focusable(),
+                    .focusable(false),
                 contentAlignment = Alignment.Center
             ) {
                 Column(
@@ -525,7 +514,7 @@ fun HumeHomeScreen() {
                         .clip(RoundedCornerShape(24.dp))
                         .background(Color(0xFF162B32))
                         .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(24.dp))
-                        .focusable()
+                        .focusable(false)
                         .padding(20.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
@@ -622,9 +611,9 @@ fun HumeHomeScreen() {
 
         // Диалоги PIN
         if (showSetPinDialog) {
-            Box(Modifier.fillMaxSize().background(Color(0xCC000000)).focusable(), contentAlignment = Alignment.Center) {
+            Box(Modifier.fillMaxSize().background(Color(0xCC000000)).focusable(false), contentAlignment = Alignment.Center) {
                 Column(
-                    modifier = Modifier.width(320.dp).clip(RoundedCornerShape(24.dp)).background(Color(0xFF162B32)).border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(24.dp)).focusable().padding(24.dp),
+                    modifier = Modifier.width(320.dp).clip(RoundedCornerShape(24.dp)).background(Color(0xFF162B32)).border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(24.dp)).focusable(false).padding(24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text("Придумайте свой PIN-код", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
@@ -653,9 +642,9 @@ fun HumeHomeScreen() {
         }
 
         if (showEnterPinDialog && pendingAppAction != null) {
-            Box(Modifier.fillMaxSize().background(Color(0xCC000000)).focusable(), contentAlignment = Alignment.Center) {
+            Box(Modifier.fillMaxSize().background(Color(0xCC000000)).focusable(false), contentAlignment = Alignment.Center) {
                 Column(
-                    modifier = Modifier.width(320.dp).clip(RoundedCornerShape(24.dp)).background(Color(0xFF162B32)).border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(24.dp)).focusable().padding(24.dp),
+                    modifier = Modifier.width(320.dp).clip(RoundedCornerShape(24.dp)).background(Color(0xFF162B32)).border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(24.dp)).focusable(false).padding(24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text("Введите ваш PIN-код", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
@@ -683,9 +672,9 @@ fun HumeHomeScreen() {
         }
 
         if (showRemovePinDialog && pendingAppAction != null) {
-            Box(Modifier.fillMaxSize().background(Color(0xCC000000)).focusable(), contentAlignment = Alignment.Center) {
+            Box(Modifier.fillMaxSize().background(Color(0xCC000000)).focusable(false), contentAlignment = Alignment.Center) {
                 Column(
-                    modifier = Modifier.width(320.dp).clip(RoundedCornerShape(24.dp)).background(Color(0xFF162B32)).border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(24.dp)).focusable().padding(24.dp),
+                    modifier = Modifier.width(320.dp).clip(RoundedCornerShape(24.dp)).background(Color(0xFF162B32)).border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(24.dp)).focusable(false).padding(24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text("Введите PIN для снятия блока", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
@@ -793,5 +782,6 @@ fun openAppInfo(context: Context, app: AppInfo) {
             data = Uri.parse("package:${app.packageName}")
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         })
-    } catch (_: Exception) { Toast.makeText(context, "Ошибка настроек", Toast.LENGTH_SHORT).show() }
+    } catch (_: Exception) { Toast.NotFoundException().printStackTrace() }
 }
+
