@@ -294,7 +294,6 @@ fun HumeHomeScreen() {
                         }
                     }
                     
-                    // КНОПКА ••• В АДМИН-РЕЖИМЕ
                     if (isEditMode) {
                         var isMoreFocused by remember { mutableStateOf(false) }
                         Box(
@@ -323,7 +322,7 @@ fun HumeHomeScreen() {
             }
         }
 
-        // ОКНО ВЫБОРА В ДОК
+        // ОКНО ВЫБОРА В ДОК (С ПЛОТНЫМ ФОНОМ И СТРОГОЙ РАМКОЙ)
         if (isPickerOpen) {
             AppGridModal(title = "Выберите приложение в док", apps = allApps, iconCache = iconCache, lockedPackages = lockedPackages, isPicker = true, onClose = { isPickerOpen = false }) { app ->
                 if (targetDockIndex in dockApps.indices) {
@@ -426,7 +425,7 @@ fun HumeHomeScreen() {
             }
         }
 
-        // УНИВЕРСАЛЬНЫЙ ДИАЛОГ PIN-КОДА
+        // ДИАЛОГ PIN-КОДА
         if (pinDialogType != PinDialogType.NONE) {
             val title = when(pinDialogType) {
                 PinDialogType.SET -> "Придумайте свой PIN-код"
@@ -493,13 +492,24 @@ enum class PinDialogType { NONE, SET, ENTER, REMOVE }
 
 @Composable
 fun AppGridModal(title: String, apps: List<AppInfo>, iconCache: MutableMap<String, ImageBitmap>, lockedPackages: Set<String>, isPicker: Boolean = false, onClose: () -> Unit, onAppClick: (AppInfo) -> Unit) {
+    // Плотный непрозрачный фон для полного перекрытия главного экрана
     Box(
-        Modifier.fillMaxSize().background(Color(if (isPicker) 0xCC000000 else 0xFA0A0A0A)).focusable(false),
+        Modifier.fillMaxSize().background(Color(0xFF071B22)).focusable(false),
         contentAlignment = if (isPicker) Alignment.Center else Alignment.TopStart
     ) {
         Column(
             modifier = Modifier
-                .let { if (isPicker) it.fillMaxSize(0.8f).clip(RoundedCornerShape(24.dp)).background(Color(0xFF162B32)).border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(24.dp)).padding(32.dp) else it.fillMaxSize().padding(48.dp) }
+                .let { 
+                    if (isPicker) {
+                        it.fillMaxSize(0.8f)
+                          .clip(RoundedCornerShape(24.dp))
+                          .background(Color(0xFF162B32))
+                          .border(2.dp, Color(0xFF33FFFF), RoundedCornerShape(24.dp)) // Яркая рамка вокруг окна выбора
+                          .padding(32.dp)
+                    } else {
+                        it.fillMaxSize().padding(48.dp)
+                    }
+                }
                 .focusable(false),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -545,7 +555,7 @@ fun AppGridModal(title: String, apps: List<AppInfo>, iconCache: MutableMap<Strin
 fun ModalContainer(onDismiss: () -> Unit, width: androidx.compose.ui.unit.Dp, content: @Composable ColumnScope.() -> Unit) {
     Box(Modifier.fillMaxSize().background(Color(0xCC000000)).focusable(false), contentAlignment = Alignment.Center) {
         Column(
-            modifier = Modifier.width(width).clip(RoundedCornerShape(24.dp)).background(Color(0xFF162B32)).border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(24.dp)).focusable(false).padding(20.dp),
+            modifier = Modifier.width(width).clip(RoundedCornerShape(24.dp)).background(Color(0xFF162B32)).border(2.dp, Color(0xFF33FFFF), RoundedCornerShape(24.dp)).focusable(false).padding(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             content = content
         )
@@ -588,7 +598,7 @@ fun HumeAppCard(app: AppInfo, iconCache: MutableMap<String, ImageBitmap>, onClic
             .focusable()
             .clip(RoundedCornerShape(16.dp))
             .background(if (isFocused) Color(0x44FFFFFF) else Color.Transparent)
-            .border(width = if (isFocused) 2.dp else 0.dp, color = Color.White, shape = RoundedCornerShape(16.dp))
+            .border(width = if (isFocused) 3.dp else 0.dp, color = Color.White, shape = RoundedCornerShape(16.dp))
             .clickable { onClick() },
         contentAlignment = Alignment.Center
     ) {
