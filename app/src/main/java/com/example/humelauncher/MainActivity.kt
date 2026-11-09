@@ -6,7 +6,6 @@ import android.content.SharedPreferences
 import android.content.pm.ActivityInfo
 import android.net.Uri
 import android.os.Bundle
-import android.view.KeyEvent
 import android.view.Window
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -84,7 +83,6 @@ fun HumeHomeScreen() {
     var savedPin by remember { mutableStateOf(prefs.getString("saved_pin", "") ?: "") }
     var pinInput by remember { mutableStateOf("") }
     
-    // Типы PIN-диалогов: NONE, SET, ENTER, REMOVE
     var pinDialogType by remember { mutableStateOf<PinDialogType>(PinDialogType.NONE) }
     var pendingAppAction by remember { mutableStateOf<AppInfo?>(null) }
 
@@ -242,19 +240,6 @@ fun HumeHomeScreen() {
                         var isFocused by remember { mutableStateOf(false) }
                         val isLastElement = (index == dockApps.size - 1)
 
-                        val keyEventListener: (KeyEvent) -> Boolean = { keyEvent ->
-                            if (!isEditMode && isLastElement && keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_RIGHT && keyEvent.nativeKeyEvent.action == KeyEvent.ACTION_DOWN) {
-                                rightPressCount++
-                                if (rightPressCount >= 2) {
-                                    isEditMode = true
-                                    Toast.makeText(context, "Админ-режим активирован!", Toast.LENGTH_SHORT).show()
-                                }
-                                true
-                            } else {
-                                false
-                            }
-                        }
-
                         Box(
                             modifier = Modifier
                                 .weight(1f)
@@ -264,7 +249,18 @@ fun HumeHomeScreen() {
                                     if (!isFocused && isLastElement) rightPressCount = 0
                                 }
                                 .focusable()
-                                .onKeyEvent(keyEventListener)
+                                .onKeyEvent { keyEvent ->
+                                    if (!isEditMode && isLastElement && keyEvent.nativeKeyEvent.keyCode == android.view.KeyEvent.KEYCODE_DPAD_RIGHT && keyEvent.nativeKeyEvent.action == android.view.KeyEvent.ACTION_DOWN) {
+                                        rightPressCount++
+                                        if (rightPressCount >= 2) {
+                                            isEditMode = true
+                                            Toast.makeText(context, "Админ-режим активирован!", Toast.LENGTH_SHORT).show()
+                                        }
+                                        true
+                                    } else {
+                                        false
+                                    }
+                                }
                                 .clip(RoundedCornerShape(20.dp))
                                 .background(if (isFocused) Color(0xFF2A444C) else if (app != null) Color(0xFF162227) else Color(0x10FFFFFF))
                                 .border(width = if (isFocused) 3.dp else 1.dp, color = if (isFocused) Color.White else Color(0x33FFFFFF), shape = RoundedCornerShape(20.dp))
@@ -430,7 +426,7 @@ fun HumeHomeScreen() {
             }
         }
 
-        // УНИВЕРСАЛЬНЫЙ ДИАЛОГ PIN-КОДА (Один вместо трех!)
+        // УНИВЕРСАЛЬНЫЙ ДИАЛОГ PIN-КОДА
         if (pinDialogType != PinDialogType.NONE) {
             val title = when(pinDialogType) {
                 PinDialogType.SET -> "Придумайте свой PIN-код"
