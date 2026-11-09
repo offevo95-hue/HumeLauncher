@@ -66,13 +66,13 @@ fun HumeHomeScreen() {
     var dockApps by remember { mutableStateOf<MutableList<AppInfo?>>(mutableListOf(null, null, null, null, null)) }
     
     var currentTime by remember { mutableStateOf("") }
-    var isDrawerOpen by remember { mutableStateOf(false) }     // Экран всех приложений
-    var isEditMode by remember { mutableStateOf(false) }       // Скрытый режим редактирования дока
-    var isPickerOpen by remember { mutableStateOf(false) }     // Выбор приложения для плюсика
+    var isDrawerOpen by remember { mutableStateOf(false) }     
+    var isPickerOpen by remember { mutableStateOf(false) }     
     var targetDockIndex by remember { mutableIntStateOf(-1) }
+    var isEditMode by remember { mutableStateOf(false) }       // Админ-режим (появляются три точки)
     
-    // Жест для входа в режим редактирования (двойной клик по часам)
-    var lastClickTime by remember { mutableLongStateOf(0L) }
+    // Счетчики для отслеживания повторных нажатий вправо на последнем элементе
+    var rightPressCount by remember { mutableIntStateOf(0) }
     
     var selectedAppForMenu by remember { mutableStateOf<AppInfo?>(null) }
     var lockedPackages by remember { mutableStateOf(setOf<String>()) }
@@ -94,8 +94,8 @@ fun HumeHomeScreen() {
             showRemovePinDialog -> showRemovePinDialog = false
             selectedAppForMenu != null -> selectedAppForMenu = null
             isPickerOpen -> isPickerOpen = false
-            isEditMode -> isEditMode = false
             isDrawerOpen -> isDrawerOpen = false
+            isEditMode -> isEditMode = false
             else -> {}
         }
     }
@@ -141,16 +141,9 @@ fun HumeHomeScreen() {
                 Text("Загрузка приложений...", color = Color.White, fontSize = 24.sp)
             }
         } else {
-            // ВЕРХНЯЯ ПАНЕЛЬ (Двойной клик по часам включает/выключает скрытый режим редактирования)
+            // ВЕРХНЯЯ ПАНЕЛЬ (чистая)
             Row(
-                Modifier.fillMaxWidth().padding(horizontal = 48.dp, vertical = 32.dp).clickable {
-                    val currentTimeMillis = System.currentTimeMillis()
-                    if (currentTimeMillis - lastClickTime < 600) {
-                        isEditMode = !isEditMode
-                        Toast.makeText(context, if (isEditMode) "Режим редактирования ВКЛ" else "Режим редактирования ВЫКЛ", Toast.LENGTH_SHORT).show()
-                    }
-                    lastClickTime = currentTimeMillis
-                },
+                Modifier.fillMaxWidth().padding(horizontal = 48.dp, vertical = 32.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -171,12 +164,7 @@ fun HumeHomeScreen() {
                 }
 
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(
-                        text = if (isEditMode) "$currentTime (РЕДАКТИРОВАНИЕ)" else currentTime, 
-                        color = if (isEditMode) Color(0xFFFFD700) else Color.White.copy(0.9f), 
-                        fontSize = 18.sp, 
-                        fontWeight = FontWeight.Medium
-                    )
+                    Text(currentTime, color = Color.White.copy(0.9f), fontSize = 18.sp, fontWeight = FontWeight.Medium)
                     Spacer(Modifier.width(8.dp))
                     
                     Box(Modifier.size(36.dp).clip(CircleShape).background(Color(0x22FFFFFF)).border(1.dp, Color(0x33FFFFFF), CircleShape), contentAlignment = Alignment.Center) {
@@ -209,13 +197,20 @@ fun HumeHomeScreen() {
                 ) {
                     dockApps.forEachIndexed { index, app ->
                         var isFocused by remember { mutableStateOf(false) }
+                        val isLastElement = (index == dockApps.size - 1)
 
                         if (app != null) {
                             Box(
                                 modifier = Modifier
                                     .weight(1f)
                                     .fillMaxHeight()
-                                    .onFocusChanged { isFocused = it.isFocused }
+                                    .onFocusChanged { 
+                                        isFocused = it.isFocused
+                                        if (!isFocused && isLastElement) {
+                                            // Сбрасываем счетчик при уходе с последнего элемента
+                                            rightPressCount = 0
+                                        }
+                                    }
                                     .focusable()
                                     .clip(RoundedCornerShape(20.dp))
                                     .background(if (isFocused) Color(0xFF2A444C) else Color(0xFF162227))
@@ -224,12 +219,10 @@ fun HumeHomeScreen() {
                                         color = if (isFocused) Color.White else Color(0x33FFFFFF),
                                         shape = RoundedCornerShape(20.dp)
                                     )
-                                    .clickable { 
+                                    .clickable {
                                         if (isEditMode) {
-                                            // В режиме редактирования клик открывает меню управления (как на первом скрине)
                                             selectedAppForMenu = app
                                         } else {
-                                            // В обычном режиме клик сразу запускает приложение
                                             handleAppClick(app)
                                         }
                                     },
@@ -265,7 +258,12 @@ fun HumeHomeScreen() {
                                 modifier = Modifier
                                     .weight(1f)
                                     .fillMaxHeight()
-                                    .onFocusChanged { isFocused = it.isFocused }
+                                    .onFocusChanged { 
+                                        isFocused = it.isFocused
+                                        if (!isFocused && isLastElement) {
+                                            rightPressCount = 0
+                                        }
+                                    }
                                     .focusable()
                                     .clip(RoundedCornerShape(20.dp))
                                     .background(if (isFocused) Color(0xFF2A444C) else Color(0x10FFFFFF))
@@ -275,13 +273,76 @@ fun HumeHomeScreen() {
                                         shape = RoundedCornerShape(20.dp)
                                     )
                                     .clickable {
-                                        targetDockIndex = index
-                                        isPickerOpen = true
+                                        if (isLastElement && !isEditMode) {
+                                            // Если жмем на последний пустой плюс, считаем как жест вправо
+                                            rightPressCount++
+                                            if (rightPressCount >= 2) {
+                                                isEditMode = true
+                                                Toast.makeText(context, "Админ-режим активирован", Toast.LENGTH_SHORT).show()
+                                            }
+                                        } else {
+                                            targetDockIndex = index
+                                            isPickerOpen = true
+                                        }
                                     },
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text("+", color = Color.White.copy(0.7f), fontSize = 32.sp, fontWeight = FontWeight.Bold)
                             }
+                        }
+                    }
+                    
+                    // ТРИ ТОЧКИ СПРАВА: ПОЯВЛЯЮТСЯ ТОЛЬКО КОГДА АКТИВИРОВАН isEditMode
+                    if (isEditMode) {
+                        var isMoreFocused by remember { mutableStateOf(false) }
+                        Box(
+                            modifier = Modifier
+                                .weight(0.6f)
+                                .fillMaxHeight()
+                                .onFocusChanged { isMoreFocused = it.isFocused }
+                                .focusable()
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(if (isMoreFocused) Color(0xFF333333) else Color(0xFF1C282D))
+                                .border(
+                                    width = if (isMoreFocused) 3.dp else 1.dp,
+                                    color = if (isMoreFocused) Color.White else Color(0x33FFFFFF),
+                                    shape = RoundedCornerShape(20.dp)
+                                )
+                                .clickable {
+                                    // Клик по точкам открывает список приложений для администрирования или закрывает режим
+                                    isDrawerOpen = true
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("•••", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+
+        // ЭКРАН ВСЕХ ПРИЛОЖЕНИЙ (ОТКРЫВАЕТСЯ ЧЕРЕЗ ТОЧКИ)
+        if (isDrawerOpen) {
+            Box(Modifier.fillMaxSize().background(Color(0xFA0A0A0A)).padding(48.dp)) {
+                Column {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Text("Все приложения", color = Color.White, fontSize = 32.sp, fontWeight = FontWeight.Bold)
+                        Text("Закрыть ✕", color = Color.White, fontSize = 20.sp, modifier = Modifier.clickable { isDrawerOpen = false }.focusable())
+                    }
+                    Spacer(Modifier.height(24.dp))
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(6),
+                        horizontalArrangement = Arrangement.spacedBy(24.dp),
+                        verticalArrangement = Arrangement.spacedBy(24.dp),
+                        modifier = Modifier.fillMaxSize().focusable()
+                    ) {
+                        itemsIndexed(allApps) { _, app ->
+                            HumeAppCard(
+                                app = app, 
+                                iconCache = iconCache, 
+                                onClick = { selectedAppForMenu = app },
+                                isLocked = lockedPackages.contains(app.packageName)
+                            )
                         }
                     }
                 }
@@ -298,17 +359,19 @@ fun HumeHomeScreen() {
                         .background(Color(0xFF162B32))
                         .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(24.dp))
                         .padding(32.dp)
+                        .focusable(),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Text("Выберите приложение в док", color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Bold)
-                        Text("Закрыть ✕", color = Color.White, fontSize = 18.sp, modifier = Modifier.clickable { isPickerOpen = false })
+                        Text("Закрыть ✕", color = Color.White, fontSize = 18.sp, modifier = Modifier.clickable { isPickerOpen = false }.focusable())
                     }
                     Spacer(Modifier.height(24.dp))
                     LazyVerticalGrid(
                         columns = GridCells.Fixed(5),
                         horizontalArrangement = Arrangement.spacedBy(20.dp),
                         verticalArrangement = Arrangement.spacedBy(20.dp),
-                        modifier = Modifier.fillMaxSize()
+                        modifier = Modifier.fillMaxSize().focusable()
                     ) {
                         itemsIndexed(allApps) { _, app ->
                             HumeAppCard(
@@ -330,7 +393,7 @@ fun HumeHomeScreen() {
             }
         }
 
-        // КОНТЕКСТНОЕ МЕНЮ УПРАВЛЕНИЯ ДОКОМ (СДВИНУТЬ, УБРАТЬ, PIN И Т.Д.)
+        // КОНТЕКСТНОЕ МЕНЮ УПРАВЛЕНИЯ ЭЛЕМЕНТОМ ДОКА
         selectedAppForMenu?.let { app ->
             val isInDock = dockApps.contains(app)
             val appIndex = dockApps.indexOf(app)
@@ -535,7 +598,8 @@ fun MenuButton(text: String, isRed: Boolean = false, modifier: Modifier = Modifi
             .height(44.dp)
             .clip(RoundedCornerShape(12.dp))
             .background(if (isRed) Color(0x44FF0000) else Color(0x22FFFFFF))
-            .clickable { onClick() },
+            .clickable { onClick() }
+            .focusable(),
         contentAlignment = Alignment.Center
     ) {
         Text(text, color = if (isRed) Color(0xFFFF6B6B) else Color.White, fontSize = 15.sp, fontWeight = FontWeight.Medium)
@@ -572,13 +636,15 @@ fun HumeAppCard(app: AppInfo, iconCache: MutableMap<String, ImageBitmap>, onClic
 fun getAllApps(context: Context): List<AppInfo> {
     val pm = context.packageManager
     val map = mutableMapOf<String, AppInfo>()
-    val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+    val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER)
     pm.queryIntentActivities(intent, 0).forEach {
         map[it.activityInfo.packageName] = AppInfo(it.loadLabel(pm).toString(), it.activityInfo.packageName, it.activityInfo.name, it.loadIcon(pm))
     }
-    val leanbackIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER)
-    pm.queryIntentActivities(leanbackIntent, 0).forEach {
-        map[it.activityInfo.packageName] = AppInfo(it.loadLabel(pm).toString(), it.activityInfo.packageName, it.activityInfo.name, it.loadIcon(pm))
+    val regularIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+    pm.queryIntentActivities(regularIntent, 0).forEach {
+        if (!map.containsKey(it.activityInfo.packageName)) {
+            map[it.activityInfo.packageName] = AppInfo(it.loadLabel(pm).toString(), it.activityInfo.packageName, it.activityInfo.name, it.loadIcon(pm))
+        }
     }
     return map.values.toList()
 }
