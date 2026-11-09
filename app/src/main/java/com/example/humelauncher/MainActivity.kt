@@ -12,6 +12,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -23,6 +24,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
@@ -83,7 +85,7 @@ fun HumeHomeScreen() {
     )) {
         if (allApps.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("Загрузка...", color = Color.White, fontSize = 24.sp)
+                Text("Загрузка приложений...", color = Color.White, fontSize = 24.sp)
             }
         } else {
             // ВЕРХНЯЯ ПАНЕЛЬ
@@ -126,26 +128,16 @@ fun HumeHomeScreen() {
                 }
             }
 
-            // СЕТКА ПРИЛОЖЕНИЙ
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(6),
-                modifier = Modifier.fillMaxSize().padding(top = 100.dp, bottom = 200.dp, start = 64.dp, end = 64.dp),
-                horizontalArrangement = Arrangement.spacedBy(24.dp),
-                verticalArrangement = Arrangement.spacedBy(32.dp)
-            ) {
-                itemsIndexed(allApps.take(12)) { index, app ->
-                    HumeAppCard(app = app, iconCache = iconCache, onClick = { openApp(context, app) })
-                }
-            }
+            // ЦЕНТР ПУСТОЙ (как на референсе)
 
-            // НОВЫЙ ДОК (КАК НА СКРИНШОТЕ APPLE TV)
+            // НИЖНИЙ ДОК (КАК НА СКРИНШОТЕ APPLE TV)
             Box(
                 Modifier.align(Alignment.BottomCenter)
                     .padding(bottom = 20.dp)
-                    .fillMaxWidth(0.95f) // Широкий док
-                    .height(150.dp)      // Высокий
+                    .fillMaxWidth(0.95f)
+                    .height(150.dp)
                     .clip(RoundedCornerShape(32.dp))
-                    .background(Color(0x11FFFFFF)) // Легкая прозрачность
+                    .background(Color(0x11FFFFFF))
                     .border(1.dp, Color(0x22FFFFFF), RoundedCornerShape(32.dp)),
                 contentAlignment = Alignment.Center
             ) {
@@ -156,7 +148,6 @@ fun HumeHomeScreen() {
                 ) {
                     // Первые 5 приложений в виде плиток
                     allApps.take(5).forEachIndexed { index, app ->
-                        // Цвета плиток для красоты (как на скрине: фиолетовый, желтый, зеленый...)
                         val colors = listOf(
                             Color(0xFF6A4CFF), // Фиолетовый
                             Color(0xFFD4C585), // Золотистый
@@ -165,13 +156,21 @@ fun HumeHomeScreen() {
                             Color(0xFFF2B705)  // Желтый
                         )
                         val tileColor = colors[index % colors.size]
+                        var isFocused by remember { mutableStateOf(false) }
 
                         Box(
                             modifier = Modifier
                                 .weight(1f)
                                 .fillMaxHeight()
+                                .onFocusChanged { isFocused = it.isFocused }
+                                .focusable()
                                 .clip(RoundedCornerShape(20.dp))
                                 .background(tileColor)
+                                .border(
+                                    width = if (isFocused) 3.dp else 0.dp,
+                                    color = if (isFocused) Color.White else Color.Transparent,
+                                    shape = RoundedCornerShape(20.dp)
+                                )
                                 .clickable { openApp(context, app) },
                             contentAlignment = Alignment.Center
                         ) {
@@ -179,19 +178,27 @@ fun HumeHomeScreen() {
                             Image(
                                 bitmap = bmp, 
                                 contentDescription = app.name, 
-                                modifier = Modifier.fillMaxSize(0.8f), // Иконка чуть меньше плитки
+                                modifier = Modifier.fillMaxSize(0.6f), 
                                 contentScale = ContentScale.Fit
                             )
                         }
                     }
                     
-                    // Кнопка "Ещё" (в правом углу, светло-желтая)
+                    // Кнопка "Ещё" (•••)
+                    var isMoreFocused by remember { mutableStateOf(false) }
                     Box(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxHeight()
+                            .onFocusChanged { isMoreFocused = it.isFocused }
+                            .focusable()
                             .clip(RoundedCornerShape(20.dp))
                             .background(Color(0xFFF2B705))
+                            .border(
+                                width = if (isMoreFocused) 3.dp else 0.dp,
+                                color = if (isMoreFocused) Color.White else Color.Transparent,
+                                shape = RoundedCornerShape(20.dp)
+                            )
                             .clickable { isDrawerOpen = true },
                         contentAlignment = Alignment.Center
                     ) {
@@ -206,21 +213,26 @@ fun HumeHomeScreen() {
                         .offset(y = (-20).dp)
                         .clickable { isDrawerOpen = true }
                 ) {
-                    Text("^", color = Color.White.copy(0.7f), fontSize = 24.sp)
+                    Text("^", color = Color.White.copy(0.7f), fontSize = 28.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
 
-        // ЭКРАН ВСЕХ ПРИЛОЖЕНИЙ
+        // ЭКРАН ВСЕХ ПРИЛОЖЕНИЙ (ВЫДВИЖНОЙ СПИСОК)
         if (isDrawerOpen) {
             Box(Modifier.fillMaxSize().background(Color(0xFA0A0A0A)).padding(48.dp)) {
                 Column {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Text("Все приложения", color = Color.White, fontSize = 32.sp, fontWeight = FontWeight.Bold)
-                        Text("Закрыть", color = Color.White, fontSize = 20.sp, modifier = Modifier.clickable { isDrawerOpen = false })
+                        Text("Закрыть ✕", color = Color.White, fontSize = 20.sp, modifier = Modifier.clickable { isDrawerOpen = false })
                     }
                     Spacer(Modifier.height(24.dp))
-                    LazyVerticalGrid(columns = GridCells.Adaptive(160.dp), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(6),
+                        horizontalArrangement = Arrangement.spacedBy(24.dp),
+                        verticalArrangement = Arrangement.spacedBy(24.dp),
+                        modifier = Modifier.fillMaxSize()
+                    ) {
                         itemsIndexed(allApps) { _, app ->
                             HumeAppCard(app = app, iconCache = iconCache, onClick = { openApp(context, app) })
                         }
@@ -234,15 +246,39 @@ fun HumeHomeScreen() {
 fun getAllApps(context: Context): List<AppInfo> {
     val pm = context.packageManager
     val map = mutableMapOf<String, AppInfo>()
-    val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER)
+    
+    // Ищем обычные лаунчер-приложения и Leanback (для ТВ)
+    val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
     pm.queryIntentActivities(intent, 0).forEach {
-        map[it.activityInfo.packageName] = AppInfo(it.loadLabel(pm).toString(), it.activityInfo.packageName, it.activityInfo.name, it.loadIcon(pm))
+        map[it.activityInfo.packageName] = AppInfo(
+            it.loadLabel(pm).toString(), 
+            it.activityInfo.packageName, 
+            it.activityInfo.name, 
+            it.loadIcon(pm)
+        )
     }
+    
+    val leanbackIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER)
+    pm.queryIntentActivities(leanbackIntent, 0).forEach {
+        map[it.activityInfo.packageName] = AppInfo(
+            it.loadLabel(pm).toString(), 
+            it.activityInfo.packageName, 
+            it.activityInfo.name, 
+            it.loadIcon(pm)
+        )
+    }
+    
     return map.values.toList()
 }
 
 fun openApp(context: Context, app: AppInfo) {
     try {
-        context.startActivity(Intent().apply { setClassName(app.packageName, app.activityName); addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) })
-    } catch (_: Exception) { Toast.makeText(context, "Ошибка запуска", Toast.LENGTH_SHORT).show() }
+        context.startActivity(Intent().apply { 
+            setClassName(app.packageName, app.activityName)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) 
+        })
+    } catch (_: Exception) { 
+        Toast.makeText(context, "Ошибка запуска", Toast.LENGTH_SHORT).show() 
+    }
 }
+
