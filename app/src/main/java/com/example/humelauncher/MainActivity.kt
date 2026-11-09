@@ -66,14 +66,16 @@ fun HumeHomeScreen() {
     val context = LocalContext.current
     var allApps by remember { mutableStateOf<List<AppInfo>>(emptyList()) }
     
+    // Фиксированный док на 5 слотов
     var dockApps by remember { mutableStateOf<MutableList<AppInfo?>>(mutableListOf(null, null, null, null, null)) }
     
     var currentTime by remember { mutableStateOf("") }
     var isDrawerOpen by remember { mutableStateOf(false) }     
     var isPickerOpen by remember { mutableStateOf(false) }     
     var targetDockIndex by remember { mutableIntStateOf(-1) }
-    var isEditMode by remember { mutableStateOf(false) }       
+    var isEditMode by remember { mutableStateOf(false) }       // Режим админа (редактирование дока)
     
+    // Счетчик для секретного жеста (2 нажатия вправо на последнем элементе)
     var rightPressCount by remember { mutableIntStateOf(0) }
     
     var selectedAppForMenu by remember { mutableStateOf<AppInfo?>(null) }
@@ -89,6 +91,7 @@ fun HumeHomeScreen() {
 
     val iconCache = remember { mutableStateMapOf<String, ImageBitmap>() }
 
+    // Обработка кнопки «Назад» с пульта для закрытия окон по очереди
     BackHandler(enabled = true) {
         when {
             showSetPinDialog -> showSetPinDialog = false
@@ -102,6 +105,7 @@ fun HumeHomeScreen() {
         }
     }
 
+    // Часы
     LaunchedEffect(Unit) {
         while (true) {
             currentTime = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
@@ -109,6 +113,7 @@ fun HumeHomeScreen() {
         }
     }
 
+    // Загрузка всех приложений при старте
     LaunchedEffect(Unit) {
         val apps = withContext(Dispatchers.IO) { getAllApps(context) }
         allApps = apps.sortedBy { it.name }
@@ -121,6 +126,7 @@ fun HumeHomeScreen() {
         }
     }
 
+    // Логика запуска приложения с проверкой на PIN-код
     val handleAppClick = { app: AppInfo ->
         if (lockedPackages.contains(app.packageName)) {
             pendingAppAction = app
@@ -143,6 +149,7 @@ fun HumeHomeScreen() {
                 Text("Загрузка приложений...", color = Color.White, fontSize = 24.sp)
             }
         } else {
+            // ВЕРХНЯЯ ПАНЕЛЬ
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 48.dp, vertical = 32.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -180,6 +187,7 @@ fun HumeHomeScreen() {
                 }
             }
 
+            // НИЖНИЙ ДОК С СЕКРЕТНЫМ ЖЕСТОМ
             Box(
                 Modifier.align(Alignment.BottomCenter)
                     .padding(bottom = 20.dp)
@@ -212,6 +220,7 @@ fun HumeHomeScreen() {
                                     }
                                     .focusable()
                                     .onKeyEvent { keyEvent ->
+                                        // Секретный жест: 2 нажатия вправо на последнем элементе при выключенном режиме
                                         if (!isEditMode && isLastElement && keyEvent.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_DPAD_RIGHT && keyEvent.nativeKeyEvent.action == KeyEvent.ACTION_DOWN) {
                                             rightPressCount++
                                             if (rightPressCount >= 2) {
@@ -306,6 +315,7 @@ fun HumeHomeScreen() {
                         }
                     }
                     
+                    // КНОПКА С ТРЕМЯ ТОЧКАМИ (ПОЯВЛЯЕТСЯ ТОЛЬКО В РЕЖИМЕ АДМИНА)
                     if (isEditMode) {
                         var isMoreFocused by remember { mutableStateOf(false) }
                         Box(
@@ -333,7 +343,7 @@ fun HumeHomeScreen() {
             }
         }
 
-        // ОКНО ВСЕХ ПРИЛОЖЕНИЙ (БЕЗ УХОДА ФОКУСА ЗА РАМКИ)
+        // ОКНО ВСЕХ ПРИЛОЖЕНИЙ
         if (isDrawerOpen) {
             Box(
                 Modifier.fillMaxSize()
@@ -379,7 +389,7 @@ fun HumeHomeScreen() {
             }
         }
 
-        // ОКНО ВЫБОРА ПРИЛОЖЕНИЯ В ДОК (БЕЗ УХОДА ФОКУСА ЗА РАМКИ)
+        // ОКНО ВЫБОРА ПРИЛОЖЕНИЯ В ДОК (+)
         if (isPickerOpen) {
             Box(
                 Modifier.fillMaxSize()
@@ -440,7 +450,7 @@ fun HumeHomeScreen() {
             }
         }
 
-        // КОНТЕКСТНОЕ МЕНЮ
+        // КОНТЕКСТНОЕ МЕНЮ ЭЛЕМЕНТА ДОКА
         selectedAppForMenu?.let { app ->
             val isInDock = dockApps.contains(app)
             val appIndex = dockApps.indexOf(app)
