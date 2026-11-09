@@ -13,6 +13,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
@@ -89,7 +90,6 @@ fun HumeHomeScreen() {
     LaunchedEffect(Unit) {
         val apps = withContext(Dispatchers.IO) { getAllApps(context) }
         allApps = apps.sortedBy { it.name }
-        // Первые 5 приложений по умолчанию попадают в док, если он пустой
         if (dockApps.isEmpty() && allApps.isNotEmpty()) {
             dockApps = allApps.take(5).toMutableList()
         }
@@ -117,7 +117,6 @@ fun HumeHomeScreen() {
                 Text("Загрузка приложений...", color = Color.White, fontSize = 24.sp)
             }
         } else {
-            // ВЕРХНЯЯ ПАНЕЛЬ
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 48.dp, vertical = 32.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -155,7 +154,6 @@ fun HumeHomeScreen() {
                 }
             }
 
-            // НИЖНИЙ ДОК
             Box(
                 Modifier.align(Alignment.BottomCenter)
                     .padding(bottom = 20.dp)
@@ -242,7 +240,6 @@ fun HumeHomeScreen() {
             }
         }
 
-        // ЭКРАН ВСЕХ ПРИЛОЖЕНИЙ
         if (isDrawerOpen) {
             Box(Modifier.fillMaxSize().background(Color(0xFA0A0A0A)).padding(48.dp)) {
                 Column {
@@ -271,7 +268,6 @@ fun HumeHomeScreen() {
             }
         }
 
-        // РУССКОЕ КОНТЕКСТНОЕ МЕНЮ С УПРАВЛЕНИЕМ ДОКОМ
         selectedAppForMenu?.let { app ->
             val isInDock = dockApps.contains(app)
             val appIndex = dockApps.indexOf(app)
@@ -300,7 +296,6 @@ fun HumeHomeScreen() {
                     }
                     Spacer(Modifier.height(8.dp))
 
-                    // Управление доком (Влево / Вправо / Добавить / Удалить)
                     if (isInDock) {
                         if (appIndex > 0) {
                             MenuButton("← Сдвинуть влево") {
