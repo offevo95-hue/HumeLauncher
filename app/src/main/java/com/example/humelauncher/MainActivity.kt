@@ -8,13 +8,12 @@ import android.os.Bundle
 import android.view.Window
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -58,7 +57,6 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun HumeHomeScreen() {
     val context = LocalContext.current
@@ -79,6 +77,20 @@ fun HumeHomeScreen() {
     var pendingAppAction by remember { mutableStateOf<AppInfo?>(null) }
 
     val iconCache = remember { mutableStateMapOf<String, ImageBitmap>() }
+
+    // Умная обработка кнопки "Назад" с пульта
+    BackHandler(enabled = true) {
+        when {
+            showSetPinDialog -> showSetPinDialog = false
+            showEnterPinDialog -> showEnterPinDialog = false
+            showRemovePinDialog -> showRemovePinDialog = false
+            selectedAppForMenu != null -> selectedAppForMenu = null
+            isDrawerOpen -> isDrawerOpen = false
+            else -> {
+                // На главном экране нажатие назад ничего не делает, чтобы лаунчер не закрывался случайно
+            }
+        }
+    }
 
     LaunchedEffect(Unit) {
         while (true) {
@@ -189,10 +201,7 @@ fun HumeHomeScreen() {
                                     color = if (isFocused) Color.White else Color.Transparent,
                                     shape = RoundedCornerShape(20.dp)
                                 )
-                                .combinedClickable(
-                                    onClick = { handleAppClick(app) },
-                                    onLongClick = { selectedAppForMenu = app }
-                                ),
+                                .clickable { selectedAppForMenu = app },
                             contentAlignment = Alignment.Center
                         ) {
                             val bmp = iconCache[app.packageName] ?: app.icon.toBitmap().asImageBitmap().also { iconCache[app.packageName] = it }
@@ -258,8 +267,7 @@ fun HumeHomeScreen() {
                             HumeAppCard(
                                 app = app, 
                                 iconCache = iconCache, 
-                                onClick = { handleAppClick(app) },
-                                onLongClick = { selectedAppForMenu = app },
+                                onClick = { selectedAppForMenu = app },
                                 isLocked = lockedPackages.contains(app.packageName)
                             )
                         }
@@ -290,9 +298,9 @@ fun HumeHomeScreen() {
 
                     val isLocked = lockedPackages.contains(app.packageName)
 
-                    MenuButton("Открыть") {
-                        handleAppClick(app)
+                    MenuButton("Запустить приложение") {
                         selectedAppForMenu = null
+                        handleAppClick(app)
                     }
                     Spacer(Modifier.height(8.dp))
 
@@ -517,9 +525,8 @@ fun MenuButton(text: String, isRed: Boolean = false, modifier: Modifier = Modifi
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun HumeAppCard(app: AppInfo, iconCache: MutableMap<String, ImageBitmap>, onClick: () -> Unit, onLongClick: () -> Unit, isLocked: Boolean) {
+fun HumeAppCard(app: AppInfo, iconCache: MutableMap<String, ImageBitmap>, onClick: () -> Unit, isLocked: Boolean) {
     var isFocused by remember { mutableStateOf(false) }
     val bmp = iconCache[app.packageName] ?: app.icon.toBitmap().asImageBitmap().also { iconCache[app.packageName] = it }
 
@@ -531,7 +538,7 @@ fun HumeAppCard(app: AppInfo, iconCache: MutableMap<String, ImageBitmap>, onClic
             .clip(RoundedCornerShape(16.dp))
             .background(if (isFocused) Color(0x44FFFFFF) else Color.Transparent)
             .border(width = if (isFocused) 2.dp else 0.dp, color = Color.White, shape = RoundedCornerShape(16.dp))
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
+            .clickable { onClick() },
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
