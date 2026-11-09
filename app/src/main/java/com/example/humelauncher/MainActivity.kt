@@ -10,6 +10,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -21,7 +22,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -58,10 +58,10 @@ fun HumeHomeScreen() {
     var currentTime by remember { mutableStateOf("") }
     var isDrawerOpen by remember { mutableStateOf(false) }
 
-    // Хранилище иконок в памяти
+    // Кэш иконок
     val iconCache = remember { mutableStateMapOf<String, ImageBitmap>() }
 
-    // Обновление времени
+    // Время
     LaunchedEffect(Unit) {
         while (true) {
             currentTime = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
@@ -75,10 +75,14 @@ fun HumeHomeScreen() {
         allApps = apps.sortedBy { it.name }
     }
 
-    // Обои (Градиент как на Apple TV)
+    // ОБОИ (Глубокий градиент как на скриншоте)
     Box(Modifier.fillMaxSize().background(
         Brush.linearGradient(
-            colors = listOf(Color(0xFF103A4B), Color(0xFF0F2027), Color(0xFF000000))
+            colors = listOf(
+                Color(0xFF0F2027),
+                Color(0xFF203A43),
+                Color(0xFF2C5364)
+            )
         )
     )) {
         if (allApps.isEmpty()) {
@@ -86,34 +90,44 @@ fun HumeHomeScreen() {
                 Text("Загрузка...", color = Color.White, fontSize = 24.sp)
             }
         } else {
-            // ВЕРХНЯЯ ПАНЕЛЬ (Статус-бар)
+            // ВЕРХНЯЯ ПАНЕЛЬ
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 48.dp, vertical = 32.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Капсула с погодой (Стекло)
+                // Капсула погоды (Стекло)
                 Row(
                     modifier = Modifier
                         .clip(RoundedCornerShape(24.dp))
                         .background(Color(0x33FFFFFF))
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                        .border(1.dp, Color(0x44FFFFFF), RoundedCornerShape(24.dp))
+                        .padding(horizontal = 20.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text("☁️", fontSize = 20.sp)
-                    Spacer(Modifier.width(8.dp))
+                    Spacer(Modifier.width(12.dp))
                     Column {
-                        Text("8° London", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        Text("8° London", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                         Text("Cloudy", color = Color.White.copy(0.7f), fontSize = 12.sp)
                     }
                 }
 
-                // Время и иконки
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(currentTime, color = Color.White.copy(0.8f), fontSize = 18.sp, fontWeight = FontWeight.Medium)
-                    Spacer(Modifier.width(16.dp))
-                    Box(Modifier.size(40.dp).clip(CircleShape).background(Color(0x33FFFFFF)), contentAlignment = Alignment.Center) {
+                // Время и кнопки управления справа
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Text(currentTime, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Medium)
+                    
+                    // Кнопка Настройки (Стекло)
+                    Box(Modifier.size(44.dp).clip(CircleShape).background(Color(0x33FFFFFF)).border(1.dp, Color(0x44FFFFFF), CircleShape), contentAlignment = Alignment.Center) {
+                        Text("⚙️", fontSize = 18.sp)
+                    }
+                    // Кнопка Поиск (Стекло)
+                    Box(Modifier.size(44.dp).clip(CircleShape).background(Color(0x33FFFFFF)).border(1.dp, Color(0x44FFFFFF), CircleShape), contentAlignment = Alignment.Center) {
                         Text("🔍", fontSize = 18.sp)
+                    }
+                    // Профиль (Стекло)
+                    Box(Modifier.size(44.dp).clip(CircleShape).background(Color(0x33FFFFFF)).border(1.dp, Color(0x44FFFFFF), CircleShape), contentAlignment = Alignment.Center) {
+                        Text("👤", fontSize = 18.sp)
                     }
                 }
             }
@@ -121,7 +135,7 @@ fun HumeHomeScreen() {
             // СЕТКА ПРИЛОЖЕНИЙ
             LazyVerticalGrid(
                 columns = GridCells.Fixed(6),
-                modifier = Modifier.fillMaxSize().padding(top = 100.dp, bottom = 220.dp, start = 64.dp, end = 64.dp),
+                modifier = Modifier.fillMaxSize().padding(top = 80.dp, bottom = 220.dp, start = 64.dp, end = 64.dp),
                 horizontalArrangement = Arrangement.spacedBy(32.dp),
                 verticalArrangement = Arrangement.spacedBy(32.dp)
             ) {
@@ -137,59 +151,60 @@ fun HumeHomeScreen() {
             Box(
                 Modifier.align(Alignment.BottomCenter)
                     .padding(bottom = 32.dp)
-                    .fillMaxWidth(0.85f) // Широкий док
-                    .height(130.dp)
-                    // Эффект размытого стекла
+                    .fillMaxWidth(0.85f)
+                    .height(140.dp)
                     .clip(RoundedCornerShape(32.dp))
                     .background(Color(0x22FFFFFF))
                     .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(32.dp)),
                 contentAlignment = Alignment.Center
             ) {
-                // Внутри дока выводим избранные приложения (первые 6)
                 Row(
                     modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp),
-                    horizontalArrangement = Arrangement.spacedBy(20.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    // Избранные приложения (первые 5)
                     allApps.take(5).forEach { app ->
                         Box(
                             modifier = Modifier
                                 .weight(1f)
-                                .fillMaxHeight(0.8f)
+                                .fillMaxHeight(0.75f)
                                 .clip(RoundedCornerShape(16.dp))
                                 .background(Color.White)
                                 .clickable { openApp(context, app) },
                             contentAlignment = Alignment.Center
                         ) {
                             val bmp = iconCache[app.packageName] ?: app.icon.toBitmap().asImageBitmap().also { iconCache[app.packageName] = it }
-                            Image(bitmap = bmp, contentDescription = app.name, modifier = Modifier.size(48.dp))
+                            Image(bitmap = bmp, contentDescription = app.name, modifier = Modifier.size(64.dp))
                         }
                     }
-                    // Плюс кнопка "Ещё"
-                     Box(
+                    // Кнопка "Ещё"
+                    Box(
                         modifier = Modifier
                             .weight(1f)
-                            .fillMaxHeight(0.8f)
+                            .fillMaxHeight(0.75f)
                             .clip(RoundedCornerShape(16.dp))
                             .background(Color(0x33FFFFFF))
+                            .border(1.dp, Color(0x44FFFFFF), RoundedCornerShape(16.dp))
                             .clickable { isDrawerOpen = true },
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("•••", color = Color.White, fontSize = 24.sp)
+                        Text("•••", color = Color.White, fontSize = 32.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
         }
 
-        // Экран всех приложений
+        // Экран "Все приложения"
         if (isDrawerOpen) {
             Box(Modifier.fillMaxSize().background(Color(0xFA0A0A0A)).padding(48.dp)) {
                 Column {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Все приложения", color = Color.White, fontSize = 32.sp)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Text("Все приложения", color = Color.White, fontSize = 32.sp, fontWeight = FontWeight.Bold)
                         Text("Закрыть", color = Color.White, fontSize = 20.sp, modifier = Modifier.clickable { isDrawerOpen = false })
                     }
-                    LazyVerticalGrid(columns = GridCells.Adaptive(160.dp)) {
+                    Spacer(Modifier.height(24.dp))
+                    LazyVerticalGrid(columns = GridCells.Adaptive(160.dp), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
                         itemsIndexed(allApps) { _, app ->
                             HumeAppCard(app = app, iconCache = iconCache, onClick = { openApp(context, app) })
                         }
@@ -197,6 +212,44 @@ fun HumeHomeScreen() {
                 }
             }
         }
+    }
+}
+
+@Composable
+fun HumeAppCard(app: AppInfo, iconCache: MutableMap<String, ImageBitmap>, onClick: () -> Unit) {
+    var isFocused by remember { mutableStateOf(false) }
+    val bmp = iconCache[app.packageName] ?: app.icon.toBitmap().asImageBitmap().also { iconCache[app.packageName] = it }
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .onFocusChanged { isFocused = it.isFocused }
+            .background(if (isFocused) Color(0x33FFFFFF) else Color.Transparent, RoundedCornerShape(16.dp))
+            .clickable { onClick() }
+            .padding(8.dp)
+    ) {
+        Image(bitmap = bmp, contentDescription = app.name, modifier = Modifier.size(80.dp).clip(RoundedCornerShape(16.dp)))
+        Spacer(Modifier.height(8.dp))
+        Text(app.name, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+    }
+}
+
+@Composable
+fun HumeMoreAppsCard(onClick: () -> Unit) {
+    var isFocused by remember { mutableStateOf(false) }
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .onFocusChanged { isFocused = it.isFocused }
+            .background(if (isFocused) Color(0x33FFFFFF) else Color.Transparent, RoundedCornerShape(16.dp))
+            .clickable { onClick() }
+            .padding(8.dp)
+    ) {
+        Box(Modifier.size(80.dp).clip(RoundedCornerShape(16.dp)).background(Color(0x33FFFFFF)), contentAlignment = Alignment.Center) {
+            Text("•••", color = Color.White, fontSize = 24.sp)
+        }
+        Spacer(Modifier.height(8.dp))
+        Text("Ещё", color = Color.White, fontSize = 14.sp)
     }
 }
 
@@ -213,5 +266,5 @@ fun getAllApps(context: Context): List<AppInfo> {
 fun openApp(context: Context, app: AppInfo) {
     try {
         context.startActivity(Intent().apply { setClassName(app.packageName, app.activityName); addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) })
-    } catch (_: Exception) { Toast.makeText(context, "Ошибка", Toast.LENGTH_SHORT).show() }
+    } catch (_: Exception) { Toast.makeText(context, "Ошибка запуска", Toast.LENGTH_SHORT).show() }
 }
