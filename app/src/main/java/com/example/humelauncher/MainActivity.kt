@@ -62,12 +62,12 @@ fun HumeHomeScreen() {
     val context = LocalContext.current
     var allApps by remember { mutableStateOf<List<AppInfo>>(emptyList()) }
     
-    // Док теперь поддерживает до 5 элементов (приложения или null для плюсика)
-    var dockApps by remember { mutableStateOf<MutableList<AppInfo?>>(mutableMutableListOfNulls(5)) }
+    // Док с 5 слотами (могут быть приложения или null для плюсика)
+    var dockApps by remember { mutableStateOf<MutableList<AppInfo?>>(mutableListOf(null, null, null, null, null)) }
     
     var currentTime by remember { mutableStateOf("") }
     var isDrawerOpen by remember { mutableStateOf(false) }
-    var isPickerOpen by remember { mutableStateOf(false) } // Выбор приложения для плюсика
+    var isPickerOpen by remember { mutableStateOf(false) }
     var targetDockIndex by remember { mutableIntStateOf(-1) }
     
     var selectedAppForMenu by remember { mutableStateOf<AppInfo?>(null) }
@@ -83,7 +83,6 @@ fun HumeHomeScreen() {
 
     val iconCache = remember { mutableStateMapOf<String, ImageBitmap>() }
 
-    // Обработка кнопки "Назад" с пульта
     BackHandler(enabled = true) {
         when {
             showSetPinDialog -> showSetPinDialog = false
@@ -106,12 +105,11 @@ fun HumeHomeScreen() {
     LaunchedEffect(Unit) {
         val apps = withContext(Dispatchers.IO) { getAllApps(context) }
         allApps = apps.sortedBy { it.name }
-        // Заполняем первые ячейки дока приложениями по умолчанию
         if (dockApps.all { it == null } && allApps.isNotEmpty()) {
             val initial = allApps.take(3)
             val list = mutableListOf<AppInfo?>()
             list.addAll(initial)
-            while (list.size < 5) list.add(null) // Остальные слоты пустые с плюсиком
+            while (list.size < 5) list.add(null)
             dockApps = list
         }
     }
@@ -176,7 +174,7 @@ fun HumeHomeScreen() {
                 }
             }
 
-            // НИЖНИЙ ДОК (КАК НА РЕФЕРЕНСЕ: С ИКОНКАМИ, НАЗВАНИЯМИ И ПЛЮСИКОМ)
+            // НИЖНИЙ ДОК
             Box(
                 Modifier.align(Alignment.BottomCenter)
                     .padding(bottom = 20.dp)
@@ -196,7 +194,6 @@ fun HumeHomeScreen() {
                         var isFocused by remember { mutableStateOf(false) }
 
                         if (app != null) {
-                            // Заполненная карточка приложения в доке
                             Box(
                                 modifier = Modifier
                                     .weight(1.3f)
@@ -239,7 +236,6 @@ fun HumeHomeScreen() {
                                 }
                             }
                         } else {
-                            // Пустой слот с плюсиком (+) для добавления приложения
                             Box(
                                 modifier = Modifier
                                     .weight(1.3f)
@@ -264,7 +260,6 @@ fun HumeHomeScreen() {
                         }
                     }
                     
-                    // Кнопка "•••" справа для открытия всех приложений
                     var isMoreFocused by remember { mutableStateOf(false) }
                     Box(
                         modifier = Modifier
@@ -286,7 +281,6 @@ fun HumeHomeScreen() {
                     }
                 }
                 
-                // Стрелочка вверх над доком
                 Box(
                     modifier = Modifier
                         .align(Alignment.TopCenter)
@@ -326,7 +320,7 @@ fun HumeHomeScreen() {
             }
         }
 
-        // ОКНО ВЫБОРА ПРИЛОЖЕНИЯ ПРИ КЛИКЕ НА ПЛЮСИК (+)
+        // ОКНО ВЫБОРА ПРИЛОЖЕНИЯ ДЛЯ ПЛЮСИКА (+)
         if (isPickerOpen) {
             Box(Modifier.fillMaxSize().background(Color(0xCC000000)).focusable(), contentAlignment = Alignment.Center) {
                 Column(
@@ -424,7 +418,7 @@ fun HumeHomeScreen() {
                         MenuButton("Убрать из дока", isRed = true) {
                             val list = dockApps.toMutableList()
                             val idx = list.indexOf(app)
-                            if (idx != -1) list[idx] = null // Заменяем на пустой слот с плюсиком
+                            if (idx != -1) list[idx] = null
                             dockApps = list
                             selectedAppForMenu = null
                         }
@@ -475,7 +469,7 @@ fun HumeHomeScreen() {
             }
         }
 
-        // Диалоги PIN-кодов
+        // Диалоги PIN
         if (showSetPinDialog) {
             Box(Modifier.fillMaxSize().background(Color(0xCC000000)).focusable(), contentAlignment = Alignment.Center) {
                 Column(
@@ -565,12 +559,6 @@ fun HumeHomeScreen() {
     }
 }
 
-fun <T> mutableMutableNulls(size: Int): MutableList<T?> {
-    val list = mutableListOf<T?>()
-    repeat(size) { list.add(null) }
-    return list
-}
-
 @Composable
 fun MenuButton(text: String, isRed: Boolean = false, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Box(
@@ -641,3 +629,4 @@ fun openAppInfo(context: Context, app: AppInfo) {
         })
     } catch (_: Exception) { Toast.makeText(context, "Ошибка настроек", Toast.LENGTH_SHORT).show() }
 }
+
