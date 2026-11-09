@@ -29,6 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
@@ -315,14 +316,14 @@ fun HumeHomeScreen() {
             }
         }
 
-        // ОКНО ВСЕХ ПРИЛОЖЕНИЙ
+        // ОКНО ВСЕХ ПРИЛОЖЕНИЙ (•••)
         if (isDrawerOpen) {
             AppGridModal(title = "Все приложения", apps = allApps, iconCache = iconCache, lockedPackages = lockedPackages, onClose = { isDrawerOpen = false }) { app ->
                 selectedAppForMenu = app
             }
         }
 
-        // ОКНО ВЫБОРА В ДОК (С РАМКОЙ И БЛОКИРОВКОЙ ФОКУСА)
+        // ОКНО ВЫБОРА В ДОК (+)
         if (isPickerOpen) {
             AppGridModal(title = "Выберите приложение в док", apps = allApps, iconCache = iconCache, lockedPackages = lockedPackages, isPicker = true, onClose = { isPickerOpen = false }) { app ->
                 if (targetDockIndex in dockApps.indices) {
@@ -492,35 +493,39 @@ enum class PinDialogType { NONE, SET, ENTER, REMOVE }
 
 @Composable
 fun AppGridModal(title: String, apps: List<AppInfo>, iconCache: MutableMap<String, ImageBitmap>, lockedPackages: Set<String>, isPicker: Boolean = false, onClose: () -> Unit, onAppClick: (AppInfo) -> Unit) {
-    // Непрозрачный контейнер с жестким фокусом, чтобы запереть пульт внутри
+    val closeButtonRequester = remember { FocusRequester() }
+
     Box(
         Modifier.fillMaxSize()
             .background(Color(0xFF071B22))
             .focusable(true),
-        contentAlignment = if (isPicker) Alignment.Center else Alignment.TopStart
+        contentAlignment = Alignment.Center
     ) {
         Column(
             modifier = Modifier
                 .let { 
                     if (isPicker) {
-                        it.fillMaxSize(0.8f)
+                        it.width(900.dp)
+                          .height(520.dp)
                           .clip(RoundedCornerShape(24.dp))
                           .background(Color(0xFF162B32))
-                          .border(2.dp, Color(0xFF33FFFF), RoundedCornerShape(24.dp)) // Четкая видимая рамка вокруг окна
-                          .padding(32.dp)
+                          .border(2.dp, Color(0xFF33FFFF), RoundedCornerShape(24.dp))
+                          .padding(24.dp)
                     } else {
-                        it.fillMaxSize().padding(48.dp)
+                        it.fillMaxSize()
+                          .padding(48.dp)
                     }
                 }
                 .focusable(true),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text(title, color = Color.White, fontSize = if (isPicker) 26.sp else 32.sp, fontWeight = FontWeight.Bold)
+                Text(title, color = Color.White, fontSize = if (isPicker) 22.sp else 32.sp, fontWeight = FontWeight.Bold)
                 
                 var isCloseFocused by remember { mutableStateOf(false) }
                 Box(
                     modifier = Modifier
+                        .focusRequester(closeButtonRequester)
                         .onFocusChanged { isCloseFocused = it.isFocused }
                         .focusable()
                         .clip(RoundedCornerShape(12.dp))
@@ -529,15 +534,24 @@ fun AppGridModal(title: String, apps: List<AppInfo>, iconCache: MutableMap<Strin
                         .padding(horizontal = 12.dp, vertical = 6.dp)
                         .clickable { onClose() }
                 ) {
-                    Text("Закрыть ✕", color = Color.White, fontSize = if (isPicker) 18.sp else 20.sp)
+                    Text("Закрыть ✕", color = Color.White, fontSize = if (isPicker) 16.sp else 20.sp)
                 }
             }
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(16.dp))
+            
+            // ЖЕСТКАЯ БЛОКИРОВКА ФОКУСА ВО ВСЕХ СЕТКАХ (Picker и Drawer)
             LazyVerticalGrid(
                 columns = GridCells.Fixed(if (isPicker) 5 else 6),
-                horizontalArrangement = Arrangement.spacedBy(if (isPicker) 20.dp else 24.dp),
-                verticalArrangement = Arrangement.spacedBy(if (isPicker) 20.dp else 24.dp),
-                modifier = Modifier.fillMaxSize().focusable(true)
+                horizontalArrangement = Arrangement.spacedBy(if (isPicker) 16.dp else 24.dp),
+                verticalArrangement = Arrangement.spacedBy(if (isPicker) 16.dp else 24.dp),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .focusable(true)
+                    .focusProperties {
+                        up = focusRequester { closeButtonRequester.requestFocus() }
+                        // Блокируем уход фокуса в пустоту по краям сетки
+                        left = focusRequester { FocusRequester.Cancel }
+                    }
             ) {
                 itemsIndexed(apps) { index, app ->
                     HumeAppCard(
@@ -566,7 +580,7 @@ fun ModalContainer(onDismiss: () -> Unit, width: androidx.compose.ui.unit.Dp, co
                 .width(width)
                 .clip(RoundedCornerShape(24.dp))
                 .background(Color(0xFF162B32))
-                .border(2.dp, Color(0xFF33FFFF), RoundedCornerShape(24.dp)) // Четкая рамка для всех диалогов и меню
+                .border(2.dp, Color(0xFF33FFFF), RoundedCornerShape(24.dp))
                 .focusable(true)
                 .padding(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
