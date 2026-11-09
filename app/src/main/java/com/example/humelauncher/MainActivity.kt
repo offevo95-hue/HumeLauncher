@@ -13,6 +13,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
@@ -65,18 +66,15 @@ fun HumeHomeScreen() {
     var currentTime by remember { mutableStateOf("") }
     var isDrawerOpen by remember { mutableStateOf(false) }
     
-    // Состояния для меню, блокировок и личного PIN-кода
     var selectedAppForMenu by remember { mutableStateOf<AppInfo?>(null) }
     var lockedPackages by remember { mutableStateOf(setOf<String>()) }
     
-    // Хранилище твоего личного PIN-кода (пустое, пока ты его не задашь)
     var savedPin by remember { mutableStateOf("") }
     var pinInput by remember { mutableStateOf("") }
     
-    // Режимы диалогов
-    var showSetPinDialog by remember { mutableStateOf(false) } // Создание нового PIN
-    var showEnterPinDialog by remember { mutableStateOf(false) } // Ввод PIN при запуске
-    var showRemovePinDialog by remember { mutableStateOf(false) } // Ввод PIN для разблокировки
+    var showSetPinDialog by remember { mutableStateOf(false) }
+    var showEnterPinDialog by remember { mutableStateOf(false) }
+    var showRemovePinDialog by remember { mutableStateOf(false) }
     var pendingAppAction by remember { mutableStateOf<AppInfo?>(null) }
 
     val iconCache = remember { mutableStateMapOf<String, ImageBitmap>() }
@@ -93,7 +91,6 @@ fun HumeHomeScreen() {
         allApps = apps.sortedBy { it.name }
     }
 
-    // Обработка клика по приложению (проверка на блокировку)
     val handleAppClick = { app: AppInfo ->
         if (lockedPackages.contains(app.packageName)) {
             pendingAppAction = app
@@ -116,7 +113,6 @@ fun HumeHomeScreen() {
                 Text("Загрузка приложений...", color = Color.White, fontSize = 24.sp)
             }
         } else {
-            // ВЕРХНЯЯ ПАНЕЛЬ
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 48.dp, vertical = 32.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -154,7 +150,6 @@ fun HumeHomeScreen() {
                 }
             }
 
-            // НИЖНИЙ ДОК
             Box(
                 Modifier.align(Alignment.BottomCenter)
                     .padding(bottom = 20.dp)
@@ -241,7 +236,6 @@ fun HumeHomeScreen() {
             }
         }
 
-        // ЭКРАН ВСЕХ ПРИЛОЖЕНИЙ
         if (isDrawerOpen) {
             Box(Modifier.fillMaxSize().background(Color(0xFA0A0A0A)).padding(48.dp)) {
                 Column {
@@ -270,7 +264,6 @@ fun HumeHomeScreen() {
             }
         }
 
-        // РУССКОЕ КОНТЕКСТНОЕ МЕНЮ (ПРИ ДОЛГОМ НАЖАТИИ)
         selectedAppForMenu?.let { app ->
             Box(
                 Modifier.fillMaxSize().background(Color(0xCC000000)),
@@ -299,12 +292,10 @@ fun HumeHomeScreen() {
                         val targetApp = app
                         selectedAppForMenu = null
                         if (isLocked) {
-                            // Если заблокировано — просим текущий PIN чтобы снять
                             pendingAppAction = targetApp
                             pinInput = ""
                             showRemovePinDialog = true
                         } else {
-                            // Если не заблокировано — проверяем, создан ли уже PIN вообще
                             if (savedPin.isEmpty()) {
                                 pendingAppAction = targetApp
                                 pinInput = ""
@@ -333,7 +324,6 @@ fun HumeHomeScreen() {
             }
         }
 
-        // 1. ОКНО СОЗДАНИЯ СВОЕГО PIN-КОДА
         if (showSetPinDialog) {
             Box(Modifier.fillMaxSize().background(Color(0xCC000000)), contentAlignment = Alignment.Center) {
                 Column(
@@ -378,7 +368,6 @@ fun HumeHomeScreen() {
             }
         }
 
-        // 2. ОКНО ПРОВЕРКИ PIN ПРИ ЗАПУСКЕ ПРИЛОЖЕНИЯ
         if (showEnterPinDialog && pendingAppAction != null) {
             Box(Modifier.fillMaxSize().background(Color(0xCC000000)), contentAlignment = Alignment.Center) {
                 Column(
@@ -423,7 +412,6 @@ fun HumeHomeScreen() {
             }
         }
 
-        // 3. ОКНО ПРОВЕРКИ PIN ДЛЯ СНЯТИЯ БЛОКИРОВКИ
         if (showRemovePinDialog && pendingAppAction != null) {
             Box(Modifier.fillMaxSize().background(Color(0xCC000000)), contentAlignment = Alignment.Center) {
                 Column(
