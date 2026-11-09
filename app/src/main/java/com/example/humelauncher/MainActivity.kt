@@ -494,6 +494,7 @@ enum class PinDialogType { NONE, SET, ENTER, REMOVE }
 @Composable
 fun AppGridModal(title: String, apps: List<AppInfo>, iconCache: MutableMap<String, ImageBitmap>, lockedPackages: Set<String>, isPicker: Boolean = false, onClose: () -> Unit, onAppClick: (AppInfo) -> Unit) {
     val closeButtonRequester = remember { FocusRequester() }
+    val cols = if (isPicker) 5 else 6
 
     Box(
         Modifier.fillMaxSize()
@@ -539,25 +540,35 @@ fun AppGridModal(title: String, apps: List<AppInfo>, iconCache: MutableMap<Strin
             }
             Spacer(Modifier.height(16.dp))
             
-            // Надежная фиксация фокуса внутри сетки без ошибок компиляции
             LazyVerticalGrid(
-                columns = GridCells.Fixed(if (isPicker) 5 else 6),
+                columns = GridCells.Fixed(cols),
                 horizontalArrangement = Arrangement.spacedBy(if (isPicker) 16.dp else 24.dp),
                 verticalArrangement = Arrangement.spacedBy(if (isPicker) 16.dp else 24.dp),
                 modifier = Modifier
                     .fillMaxSize()
                     .focusable(true)
-                    .focusProperties {
-                        up = closeButtonRequester
-                    }
             ) {
                 itemsIndexed(apps) { index, app ->
+                    // Вычисляем, где находится карточка, чтобы жестко заблокировать фокус на краях сетки
+                    val isLeftEdge = index % cols == 0
+                    val isRightEdge = (index + 1) % cols == 0 || index == apps.size - 1
+                    val isTopRow = index < cols
+                    val isBottomRow = index >= apps.size - (if (apps.size % cols == 0) cols else apps.size % cols)
+
+                    val cardModifier = Modifier.focusProperties {
+                        if (isLeftEdge) left = FocusRequester.Cancel
+                        if (isRightEdge) right = FocusRequester.Cancel
+                        if (isBottomRow) down = FocusRequester.Cancel
+                        if (isTopRow) up = closeButtonRequester
+                    }
+
                     HumeAppCard(
                         app = app, 
                         iconCache = iconCache, 
                         onClick = { onAppClick(app) },
                         isLocked = lockedPackages.contains(app.packageName),
-                        autoFocus = (index == 0)
+                        autoFocus = (index == 0),
+                        modifier = cardModifier
                     )
                 }
             }
@@ -604,7 +615,7 @@ fun MenuButton(text: String, isRed: Boolean = false, modifier: Modifier = Modifi
 }
 
 @Composable
-fun HumeAppCard(app: AppInfo, iconCache: MutableMap<String, ImageBitmap>, onClick: () -> Unit, isLocked: Boolean, autoFocus: Boolean = false) {
+fun HumeAppCard(app: AppInfo, iconCache: MutableMap<String, ImageBitmap>, onClick: () -> Unit, isLocked: Boolean, autoFocus: Boolean = false, modifier: Modifier = Modifier) {
     var isFocused by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
     val bmp = iconCache[app.packageName] ?: app.icon.toBitmap().asImageBitmap().also { iconCache[app.packageName] = it }
@@ -616,7 +627,7 @@ fun HumeAppCard(app: AppInfo, iconCache: MutableMap<String, ImageBitmap>, onClic
     }
 
     Box(
-        modifier = Modifier
+        modifier = modifier
             .size(90.dp)
             .focusRequester(focusRequester)
             .onFocusChanged { isFocused = it.isFocused }
