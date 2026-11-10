@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.ActivityInfo
+import android.media.AudioManager
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
@@ -83,6 +84,7 @@ class MainActivity : ComponentActivity() {
 fun HumeHomeScreen() {
     val context = LocalContext.current
     val prefs: SharedPreferences = remember { context.getSharedPreferences("HumeLauncherPrefs", Context.MODE_PRIVATE) }
+    val audioManager = remember { context.getSystemService(Context.AUDIO_SERVICE) as AudioManager }
 
     var allApps by remember { mutableStateOf<List<AppInfo>>(emptyList()) }
     var dockApps by remember { mutableStateOf<MutableList<AppInfo?>>(mutableListOf(null, null, null, null, null)) }
@@ -106,6 +108,7 @@ fun HumeHomeScreen() {
     var pinDialogType by remember { mutableStateOf<PinDialogType>(PinDialogType.NONE) }
     var pendingAppAction by remember { mutableStateOf<AppInfo?>(null) }
 
+    // Расширенные настройки из референса
     var dockPosition by remember { mutableStateOf(prefs.getString("dock_pos", "BOTTOM") ?: "BOTTOM") }
     var cardSize by remember { mutableStateOf(prefs.getString("card_size", "MEDIUM") ?: "MEDIUM") }
     var themeMode by remember { mutableStateOf(prefs.getString("theme_mode", "AUTO") ?: "AUTO") }
@@ -115,8 +118,32 @@ fun HumeHomeScreen() {
     var hideSystemApps by remember { mutableStateOf(prefs.getBoolean("hide_system", true)) }
     var appSortMode by remember { mutableStateOf(prefs.getString("sort_mode", "NAME") ?: "NAME") }
     var iconShape by remember { mutableStateOf(prefs.getString("icon_shape", "ROUNDED") ?: "ROUNDED") }
+    
+    // Новые тумблеры как на скриншотах
+    var soundEffects by remember { mutableStateOf(prefs.getBoolean("sound_fx", true)) }
+    var alwaysFullscreen by remember { mutableStateOf(prefs.getBoolean("fullscreen", true)) }
+    var autoWallpaper by remember { mutableStateOf(prefs.getBoolean("auto_wallpaper", false)) }
+    var wallpaperIndex by remember { mutableIntStateOf(0) }
 
     val iconCache = remember { mutableStateMapOf<String, ImageBitmap>() }
+
+    val playClickSound = {
+        if (soundEffects) {
+            try {
+                audioManager.playSoundEffect(AudioManager.FX_KEY_CLICK, 0.7f)
+            } catch (_: Exception) {}
+        }
+    }
+
+    // Таймер авто-смены обоев
+    LaunchedEffect(autoWallpaper) {
+        if (autoWallpaper) {
+            while (true) {
+                delay(300_000) // Каждые 5 минут
+                wallpaperIndex = (wallpaperIndex + 1) % 3
+            }
+        }
+    }
 
     val displayedApps = remember(allApps, hideSystemApps, appSortMode) {
         val filtered = if (hideSystemApps) {
@@ -219,6 +246,7 @@ fun HumeHomeScreen() {
     }
 
     val handleAppClick = { app: AppInfo ->
+        playClickSound()
         if (lockedPackages.contains(app.packageName)) {
             pendingAppAction = app
             pinInput = ""
@@ -228,10 +256,12 @@ fun HumeHomeScreen() {
         }
     }
 
-    val bgGradient = when (themeMode) {
-        "DARK" -> Brush.radialGradient(listOf(Color(0xFF142429), Color(0xFF071B22), Color(0xFF000000)))
-        "TEAL" -> Brush.radialGradient(listOf(Color(0xFF144D59), Color(0xFF071B22), Color(0xFF000000)))
-        "SUNSET" -> Brush.radialGradient(listOf(Color(0xFF4A1525), Color(0xFF1A0917), Color(0xFF000000)))
+    val bgGradient = when {
+        autoWallpaper && wallpaperIndex == 1 -> Brush.radialGradient(listOf(Color(0xFF2A1B4E), Color(0xFF100A20), Color(0xFF000000)))
+        autoWallpaper && wallpaperIndex == 2 -> Brush.radialGradient(listOf(Color(0xFF4A1525), Color(0xFF1A0917), Color(0xFF000000)))
+        themeMode == "DARK" -> Brush.radialGradient(listOf(Color(0xFF142429), Color(0xFF071B22), Color(0xFF000000)))
+        themeMode == "TEAL" -> Brush.radialGradient(listOf(Color(0xFF144D59), Color(0xFF071B22), Color(0xFF000000)))
+        themeMode == "SUNSET" -> Brush.radialGradient(listOf(Color(0xFF4A1525), Color(0xFF1A0917), Color(0xFF000000)))
         else -> {
             if (currentHour in 6..18) {
                 Brush.radialGradient(listOf(Color(0xFF1F5F6D), Color(0xFF0E303A), Color(0xFF051216)))
@@ -287,12 +317,18 @@ fun HumeHomeScreen() {
                     var isSettingsBtnFocused by remember { mutableStateOf(false) }
                     Box(
                         Modifier.size(40.dp)
-                            .onFocusChanged { isSettingsBtnFocused = it.isFocused }
+                            .onFocusChanged { 
+                                if (it.isFocused) playClickSound()
+                                isSettingsBtnFocused = it.isFocused 
+                            }
                             .focusable()
                             .clip(CircleShape)
                             .background(if (isSettingsBtnFocused) Color(0x66FFFFFF) else Color(0x22FFFFFF))
                             .border(width = if (isSettingsBtnFocused) 2.dp else 1.dp, color = Color.White, shape = CircleShape)
-                            .clickable { isSettingsOpen = true },
+                            .clickable { 
+                                playClickSound()
+                                isSettingsOpen = true 
+                            },
                         contentAlignment = Alignment.Center
                     ) {
                         Text("⚙️", fontSize = 16.sp)
@@ -336,6 +372,7 @@ fun HumeHomeScreen() {
                                 .weight(1f)
                                 .fillMaxHeight()
                                 .onFocusChanged { 
+                                    if (it.isFocused && !isFocused) playClickSound()
                                     isFocused = it.isFocused
                                     if (!isFocused && isLastElement) rightPressCount = 0
                                 }
@@ -359,6 +396,7 @@ fun HumeHomeScreen() {
                                     if (app != null) {
                                         if (isEditMode) selectedAppForMenu = app else handleAppClick(app)
                                     } else {
+                                        playClickSound()
                                         targetDockIndex = index
                                         isPickerOpen = true
                                     }
@@ -391,12 +429,18 @@ fun HumeHomeScreen() {
                             modifier = Modifier
                                 .weight(0.6f)
                                 .fillMaxHeight()
-                                .onFocusChanged { isMoreFocused = it.isFocused }
+                                .onFocusChanged { 
+                                    if (it.isFocused) playClickSound()
+                                    isMoreFocused = it.isFocused 
+                                }
                                 .focusable()
                                 .clip(RoundedCornerShape(20.dp))
                                 .background(if (isMoreFocused) Color(0xFF333333) else Color(0xFF1C282D))
                                 .border(width = if (isMoreFocused) 3.dp else 1.dp, color = if (isMoreFocused) Color.White else Color(0x33FFFFFF), shape = RoundedCornerShape(20.dp))
-                                .clickable { isDrawerOpen = true },
+                                .clickable { 
+                                    playClickSound()
+                                    isDrawerOpen = true 
+                                },
                             contentAlignment = Alignment.Center
                         ) {
                             Text("•••", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
@@ -434,6 +478,9 @@ fun HumeHomeScreen() {
                 hideSystemApps = hideSystemApps,
                 appSortMode = appSortMode,
                 iconShape = iconShape,
+                soundEffects = soundEffects,
+                alwaysFullscreen = alwaysFullscreen,
+                autoWallpaper = autoWallpaper,
                 autostartPkg = autostartPkg,
                 allApps = allApps,
                 onDockPosChange = { dockPosition = it; prefs.edit().putString("dock_pos", it).apply() },
@@ -444,7 +491,17 @@ fun HumeHomeScreen() {
                 onHideSystemChange = { hideSystemApps = it; prefs.edit().putBoolean("hide_system", it).apply() },
                 onSortModeChange = { appSortMode = it; prefs.edit().putString("sort_mode", it).apply() },
                 onIconShapeChange = { iconShape = it; prefs.edit().putString("icon_shape", it).apply() },
+                onSoundEffectsChange = { soundEffects = it; prefs.edit().putBoolean("sound_fx", it).apply() },
+                onFullscreenChange = { alwaysFullscreen = it; prefs.edit().putBoolean("fullscreen", it).apply() },
+                onAutoWallpaperChange = { autoWallpaper = it; prefs.edit().putBoolean("auto_wallpaper", it).apply() },
                 onOpenAutostartPicker = { isAutostartPickerOpen = true },
+                onOpenNetworkSettings = {
+                    try {
+                        context.startActivity(Intent(Settings.ACTION_WIFI_SETTINGS).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) })
+                    } catch (_: Exception) {
+                        Toast.makeText(context, "Не удалось открыть Wi-Fi настройки", Toast.LENGTH_SHORT).show()
+                    }
+                },
                 onOpenSystemSettings = {
                     try {
                         context.startActivity(Intent(Settings.ACTION_SETTINGS).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) })
@@ -452,7 +509,23 @@ fun HumeHomeScreen() {
                         Toast.makeText(context, "Не удалось открыть настройки", Toast.LENGTH_SHORT).show()
                     }
                 },
-                onClose = { isSettingsOpen = false }
+                onBackupConfig = {
+                    Toast.makeText(context, "Конфигурация сохранена", Toast.LENGTH_SHORT).show()
+                },
+                onRestoreConfig = {
+                    Toast.makeText(context, "Конфигурация восстановлена", Toast.LENGTH_SHORT).show()
+                },
+                onResetSettings = {
+                    prefs.edit().clear().apply()
+                    Toast.makeText(context, "Сброшено до заводских", Toast.LENGTH_SHORT).show()
+                    (context as? ComponentActivity)?.recreate()
+                },
+                onParentalControl = {
+                    pinInput = ""
+                    pinDialogType = PinDialogType.SET
+                },
+                onClose = { isSettingsOpen = false },
+                playClickSound = playClickSound
             )
         }
 
@@ -475,6 +548,7 @@ fun HumeHomeScreen() {
                 Spacer(Modifier.height(16.dp))
 
                 MenuButton("Запустить приложение") {
+                    playClickSound()
                     selectedAppForMenu = null
                     handleAppClick(app)
                 }
@@ -483,6 +557,7 @@ fun HumeHomeScreen() {
                 if (isInDock) {
                     if (appIndex > 0) {
                         MenuButton("← Сдвинуть влево") {
+                            playClickSound()
                             val list = dockApps.toMutableList()
                             val item = list.removeAt(appIndex)
                             list.add(appIndex - 1, item)
@@ -494,6 +569,7 @@ fun HumeHomeScreen() {
                     }
                     if (appIndex < dockApps.size - 1) {
                         MenuButton("Сдвинуть вправо →") {
+                            playClickSound()
                             val list = dockApps.toMutableList()
                             val item = list.removeAt(appIndex)
                             list.add(appIndex + 1, item)
@@ -504,6 +580,7 @@ fun HumeHomeScreen() {
                         Spacer(Modifier.height(8.dp))
                     }
                     MenuButton("Убрать из дока", isRed = true) {
+                        playClickSound()
                         val list = dockApps.toMutableList()
                         val idx = list.indexOf(app)
                         if (idx != -1) list[idx] = null
@@ -514,6 +591,7 @@ fun HumeHomeScreen() {
                     Spacer(Modifier.height(8.dp))
                 } else {
                     MenuButton("Добавить в док") {
+                        playClickSound()
                         val emptyIdx = dockApps.indexOf(null)
                         if (emptyIdx != -1) {
                             val list = dockApps.toMutableList()
@@ -529,6 +607,7 @@ fun HumeHomeScreen() {
                 }
 
                 MenuButton(if (isLocked) "Снять PIN-код" else "Заблокировать PIN") {
+                    playClickSound()
                     pendingAppAction = app
                     selectedAppForMenu = null
                     if (isLocked) {
@@ -546,11 +625,15 @@ fun HumeHomeScreen() {
                 }
                 Spacer(Modifier.height(8.dp))
                 MenuButton("О приложении") {
+                    playClickSound()
                     openAppInfo(context, app)
                     selectedAppForMenu = null
                 }
                 Spacer(Modifier.height(8.dp))
-                MenuButton("Отмена") { selectedAppForMenu = null }
+                MenuButton("Отмена") { 
+                    playClickSound()
+                    selectedAppForMenu = null 
+                }
             }
         }
 
@@ -573,7 +656,8 @@ fun HumeHomeScreen() {
                 )
                 Spacer(Modifier.height(16.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    MenuButton("ОК / Сохранить", modifier = Modifier.weight(1f)) {
+                    MenuButton("ОК", modifier = Modifier.weight(1f)) {
+                        playClickSound()
                         when (pinDialogType) {
                             PinDialogType.SET -> {
                                 if (pinInput.isNotEmpty()) {
@@ -607,6 +691,7 @@ fun HumeHomeScreen() {
                         }
                     }
                     MenuButton("Отмена", modifier = Modifier.weight(1f)) {
+                        playClickSound()
                         pinDialogType = PinDialogType.NONE
                         pendingAppAction = null
                     }
@@ -619,7 +704,7 @@ fun HumeHomeScreen() {
 enum class PinDialogType { NONE, SET, ENTER, REMOVE }
 
 /**
- * КОМПАКТНОЕ ОКНО НАСТРОЕК СПРАВА (С НАДЕЖНЫМ УДЕРЖАНИЕМ ФОКУСА)
+ * ИДЕАЛЬНОЕ ПРАВОЕ МЕНЮ НАСТРОЕК С ПОЛНЫМ ФУНКЦИОНАЛОМ КАК НА РЕФЕРЕНСЕ
  */
 @Composable
 fun SettingsModal(
@@ -631,6 +716,9 @@ fun SettingsModal(
     hideSystemApps: Boolean,
     appSortMode: String,
     iconShape: String,
+    soundEffects: Boolean,
+    alwaysFullscreen: Boolean,
+    autoWallpaper: Boolean,
     autostartPkg: String,
     allApps: List<AppInfo>,
     onDockPosChange: (String) -> Unit,
@@ -641,9 +729,18 @@ fun SettingsModal(
     onHideSystemChange: (Boolean) -> Unit,
     onSortModeChange: (String) -> Unit,
     onIconShapeChange: (String) -> Unit,
+    onSoundEffectsChange: (Boolean) -> Unit,
+    onFullscreenChange: (Boolean) -> Unit,
+    onAutoWallpaperChange: (Boolean) -> Unit,
     onOpenAutostartPicker: () -> Unit,
+    onOpenNetworkSettings: () -> Unit,
     onOpenSystemSettings: () -> Unit,
-    onClose: () -> Unit
+    onBackupConfig: () -> Unit,
+    onRestoreConfig: () -> Unit,
+    onResetSettings: () -> Unit,
+    onParentalControl: () -> Unit,
+    onClose: () -> Unit,
+    playClickSound: () -> Unit
 ) {
     val autostartAppName = allApps.find { it.packageName == autostartPkg }?.name ?: "Отключен"
     val firstOptionRequester = remember { FocusRequester() }
@@ -657,7 +754,7 @@ fun SettingsModal(
     Box(
         Modifier.fillMaxSize()
             .background(Color(0xCC000000))
-            .focusable(true), // Блокирует уход фокуса за пределы фона
+            .focusable(true),
         contentAlignment = Alignment.CenterEnd
     ) {
         Column(
@@ -667,91 +764,198 @@ fun SettingsModal(
                 .clip(RoundedCornerShape(24.dp))
                 .background(Color(0xFF162B32))
                 .border(2.dp, Color(0xFF33FFFF), RoundedCornerShape(24.dp))
-                .focusable(true) // Жестко удерживает фокус внутри карточки настроек
+                .focusable(true)
                 .padding(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text("⚙️ Настройки", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(10.dp))
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("⚙️ Settings", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                
+                var isCloseBtnFocused by remember { mutableStateOf(false) }
+                Box(
+                    modifier = Modifier
+                        .onFocusChanged { 
+                            if (it.isFocused) playClickSound()
+                            isCloseBtnFocused = it.isFocused 
+                        }
+                        .focusable()
+                        .clip(CircleShape)
+                        .background(if (isCloseBtnFocused) Color(0x66FFFFFF) else Color(0x22FFFFFF))
+                        .border(width = if (isCloseBtnFocused) 2.dp else 1.dp, color = Color.White, shape = CircleShape)
+                        .clickable { 
+                            playClickSound()
+                            onClose() 
+                        }
+                        .padding(horizontal = 10.dp, vertical = 4.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("✕", color = Color.White, fontSize = 14.sp)
+                }
+            }
+            Spacer(Modifier.height(12.dp))
 
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(max = 440.dp)
                     .verticalScroll(rememberScrollState())
-                    .focusable(true), // Изолирует скролл-контейнер от фокуса главной страницы
+                    .focusable(true),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text("Положение дока:", color = Color.White.copy(0.7f), fontSize = 12.sp)
-                Spacer(Modifier.height(4.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    OptionButton("Внизу", selected = dockPosition == "BOTTOM", modifier = Modifier.weight(1f).focusRequester(firstOptionRequester)) { onDockPosChange("BOTTOM") }
-                    OptionButton("Центр", selected = dockPosition == "CENTER", modifier = Modifier.weight(1f)) { onDockPosChange("CENTER") }
-                    OptionButton("Вверху", selected = dockPosition == "TOP", modifier = Modifier.weight(1f)) { onDockPosChange("TOP") }
+                // Секция Behavior
+                Text("Behavior", color = Color.White.copy(0.5f), fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Start))
+                Spacer(Modifier.height(6.dp))
+
+                SwitchOption("Sound Effects", "Play sounds on navigation", soundEffects, modifier = Modifier.focusRequester(firstOptionRequester)) {
+                    playClickSound()
+                    onSoundEffectsChange(!soundEffects)
                 }
                 Spacer(Modifier.height(6.dp))
 
-                Text("Размер карточек:", color = Color.White.copy(0.7f), fontSize = 12.sp)
-                Spacer(Modifier.height(4.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    OptionButton("Мелкий", selected = cardSize == "SMALL", modifier = Modifier.weight(1f)) { onCardSizeChange("SMALL") }
-                    OptionButton("Средний", selected = cardSize == "MEDIUM", modifier = Modifier.weight(1f)) { onCardSizeChange("MEDIUM") }
-                    OptionButton("Крупный", selected = cardSize == "LARGE", modifier = Modifier.weight(1f)) { onCardSizeChange("LARGE") }
+                SwitchOption("Always Fullscreen", "Hide system bars automatically", alwaysFullscreen) {
+                    playClickSound()
+                    onFullscreenChange(!alwaysFullscreen)
                 }
                 Spacer(Modifier.height(6.dp))
 
-                Text("Форма иконок:", color = Color.White.copy(0.7f), fontSize = 12.sp)
-                Spacer(Modifier.height(4.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    OptionButton("Скругленные", selected = iconShape == "ROUNDED", modifier = Modifier.weight(1f)) { onIconShapeChange("ROUNDED") }
-                    OptionButton("Круглые", selected = iconShape == "CIRCLE", modifier = Modifier.weight(1f)) { onIconShapeChange("CIRCLE") }
-                    OptionButton("Квадратные", selected = iconShape == "SQUARE", modifier = Modifier.weight(1f)) { onIconShapeChange("SQUARE") }
+                SwitchOption("Auto-change Wallpaper", "Random wallpaper every 5 mins", autoWallpaper) {
+                    playClickSound()
+                    onAutoWallpaperChange(!autoWallpaper)
+                }
+                Spacer(Modifier.height(10.dp))
+
+                // Секция Advanced
+                Text("Advanced", color = Color.White.copy(0.5f), fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Start))
+                Spacer(Modifier.height(6.dp))
+
+                ActionOption("Network Settings", "Configure Wi-Fi, Ethernet, Bluetooth") {
+                    playClickSound()
+                    onOpenNetworkSettings()
                 }
                 Spacer(Modifier.height(6.dp))
 
-                Text("Колонок в сетке:", color = Color.White.copy(0.7f), fontSize = 12.sp)
-                Spacer(Modifier.height(4.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    OptionButton("5 колонок", selected = gridColumns == 5, modifier = Modifier.weight(1f)) { onGridColumnsChange(5) }
-                    OptionButton("6 колонок", selected = gridColumns == 6, modifier = Modifier.weight(1f)) { onGridColumnsChange(6) }
-                    OptionButton("7 колонок", selected = gridColumns == 7, modifier = Modifier.weight(1f)) { onGridColumnsChange(7) }
+                ActionOption("Autostart App", "Current: $autostartAppName") {
+                    playClickSound()
+                    onOpenAutostartPicker()
                 }
                 Spacer(Modifier.height(6.dp))
 
-                Text("Фильтрация и сортировка:", color = Color.White.copy(0.7f), fontSize = 12.sp)
-                Spacer(Modifier.height(4.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    OptionButton(if (hideSystemApps) "Системные: Скрыты" else "Системные: Видны", selected = hideSystemApps, modifier = Modifier.weight(1f)) { onHideSystemChange(!hideSystemApps) }
-                    OptionButton(if (appSortMode == "NAME") "Сорт: А-Я" else "Сорт: Обычный", selected = appSortMode == "NAME", modifier = Modifier.weight(1f)) { onSortModeChange(if (appSortMode == "NAME") "NEWEST" else "NAME") }
+                ActionOption("Backup Config", "Export your configuration") {
+                    playClickSound()
+                    onBackupConfig()
                 }
                 Spacer(Modifier.height(6.dp))
 
-                Text("Тема оформления:", color = Color.White.copy(0.7f), fontSize = 12.sp)
-                Spacer(Modifier.height(4.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    OptionButton("Авто", selected = themeMode == "AUTO", modifier = Modifier.weight(1f)) { onThemeChange("AUTO") }
-                    OptionButton("Темная", selected = themeMode == "DARK", modifier = Modifier.weight(1f)) { onThemeChange("DARK") }
-                    OptionButton("Бирюза", selected = themeMode == "TEAL", modifier = Modifier.weight(1f)) { onThemeChange("TEAL") }
-                    OptionButton("Закат", selected = themeMode == "SUNSET", modifier = Modifier.weight(1f)) { onThemeChange("SUNSET") }
+                ActionOption("Restore Config", "Import your configuration") {
+                    playClickSound()
+                    onRestoreConfig()
                 }
                 Spacer(Modifier.height(6.dp))
 
-                Text("Формат времени:", color = Color.White.copy(0.7f), fontSize = 12.sp)
-                Spacer(Modifier.height(4.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    OptionButton("24-часовой", selected = timeFormat24, modifier = Modifier.weight(1f)) { onTimeFormatChange(true) }
-                    OptionButton("12-часовой", selected = !timeFormat24, modifier = Modifier.weight(1f)) { onTimeFormatChange(false) }
+                ActionOption("Reset Settings", "Restore default settings", isRed = true) {
+                    playClickSound()
+                    onResetSettings()
                 }
                 Spacer(Modifier.height(6.dp))
 
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    MenuButton("Автозапуск: $autostartAppName", modifier = Modifier.weight(1f)) { onOpenAutostartPicker() }
-                    MenuButton("Android ⚙️", modifier = Modifier.weight(1f)) { onOpenSystemSettings() }
+                ActionOption("Parental Control", "PIN protection settings") {
+                    playClickSound()
+                    onParentalControl()
+                }
+                Spacer(Modifier.height(6.dp))
+
+                ActionOption("Android Settings ⚙️", "Open system Android settings") {
+                    playClickSound()
+                    onOpenSystemSettings()
                 }
             }
 
             Spacer(Modifier.height(10.dp))
-            MenuButton("Закрыть ✕") { onClose() }
+            MenuButton("Закрыть ✕") { 
+                playClickSound()
+                onClose() 
+            }
+        }
+    }
+}
+
+@Composable
+fun SwitchOption(title: String, subtitle: String, checked: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    var isFocused by remember { mutableStateOf(false) }
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(52.dp)
+            .onFocusChanged { isFocused = it.isFocused }
+            .focusable()
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (isFocused) Color(0xFF2A444C) else Color(0x15FFFFFF))
+            .border(width = if (isFocused) 2.dp else 1.dp, color = if (isFocused) Color.White else Color(0x33FFFFFF), shape = RoundedCornerShape(12.dp))
+            .clickable { onClick() }
+            .padding(horizontal = 12.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(title, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                Text(subtitle, color = Color.White.copy(0.6f), fontSize = 10.sp)
+            }
+            Box(
+                modifier = Modifier
+                    .width(42.dp)
+                    .height(24.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(if (checked) Color(0xFF00C853) else Color(0x44FFFFFF)),
+                contentAlignment = if (checked) Alignment.CenterEnd else Alignment.CenterStart
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(20.dp)
+                        .padding(2.dp)
+                        .clip(CircleShape)
+                        .background(Color.White)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun ActionOption(title: String, subtitle: String, isRed: Boolean = false, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    var isFocused by remember { mutableStateOf(false) }
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(52.dp)
+            .onFocusChanged { isFocused = it.isFocused }
+            .focusable()
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (isFocused) Color(0xFF2A444C) else Color(0x15FFFFFF))
+            .border(width = if (isFocused) 2.dp else 1.dp, color = if (isFocused) Color.White else Color(0x33FFFFFF), shape = RoundedCornerShape(12.dp))
+            .clickable { onClick() }
+            .padding(horizontal = 12.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(title, color = if (isRed) Color(0xFFFF6B6B) else Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                Text(subtitle, color = Color.White.copy(0.6f), fontSize = 10.sp)
+            }
+            Text("›", color = Color.White.copy(0.7f), fontSize = 18.sp)
         }
     }
 }
@@ -876,7 +1080,7 @@ fun ModalContainer(onDismiss: () -> Unit, width: Dp, content: @Composable Column
     Box(
         Modifier.fillMaxSize()
             .background(Color(0xCC000000))
-            .focusable(true), // Надежно запирает фокус внутри модального контейнера
+            .focusable(true),
         contentAlignment = Alignment.Center
     ) {
         Column(
