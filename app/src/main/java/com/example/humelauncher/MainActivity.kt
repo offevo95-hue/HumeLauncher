@@ -17,6 +17,9 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.OutlinedTextField
@@ -314,14 +317,14 @@ fun HumeHomeScreen() {
 
         // ОКНО ВСЕХ ПРИЛОЖЕНИЙ (•••)
         if (isDrawerOpen) {
-            SafeAppGridModal(title = "Все приложения", apps = allApps, iconCache = iconCache, lockedPackages = lockedPackages, onClose = { isDrawerOpen = false }) { app ->
+            ScrollableAppGridModal(title = "Все приложения", apps = allApps, iconCache = iconCache, lockedPackages = lockedPackages, onClose = { isDrawerOpen = false }) { app ->
                 selectedAppForMenu = app
             }
         }
 
         // ОКНО ВЫБОРА В ДОК (+)
         if (isPickerOpen) {
-            SafeAppGridModal(title = "Выберите приложение в док", apps = allApps, iconCache = iconCache, lockedPackages = lockedPackages, isPicker = true, onClose = { isPickerOpen = false }) { app ->
+            ScrollableAppGridModal(title = "Выберите приложение в док", apps = allApps, iconCache = iconCache, lockedPackages = lockedPackages, isPicker = true, onClose = { isPickerOpen = false }) { app ->
                 if (targetDockIndex in dockApps.indices) {
                     val list = dockApps.toMutableList()
                     list[targetDockIndex] = app
@@ -488,11 +491,10 @@ fun HumeHomeScreen() {
 enum class PinDialogType { NONE, SET, ENTER, REMOVE }
 
 /**
- * БЕЗОПАСНАЯ СЕТКА НА РЯДАХ (Column + Row):
- * Фокус здесь никогда не пропадет в пустую зону, так как мы полностью контролируем ряды и колонки.
+ * ИДЕАЛЬНАЯ СЕТКА С ПОЛНЫМ СКРОЛЛОМ И ЗАЩИТОЙ ФОКУСА
  */
 @Composable
-fun SafeAppGridModal(
+fun ScrollableAppGridModal(
     title: String,
     apps: List<AppInfo>,
     iconCache: MutableMap<String, ImageBitmap>,
@@ -501,12 +503,8 @@ fun SafeAppGridModal(
     onClose: () -> Unit,
     onAppClick: (AppInfo) -> Unit
 ) {
-    val cols = if (isPicker) 5 else 6
-    val rows = (apps.size + cols - 1) / cols
-    val closeButtonRequester = remember { FocusRequester() }
     val firstItemRequester = remember { FocusRequester() }
 
-    // Автофокус на первую карточку при открытии
     LaunchedEffect(Unit) {
         try {
             firstItemRequester.requestFocus()
@@ -523,8 +521,8 @@ fun SafeAppGridModal(
             modifier = Modifier
                 .let { 
                     if (isPicker) {
-                        it.width(920.dp)
-                          .height(540.dp)
+                        it.width(960.dp)
+                          .height(560.dp)
                           .clip(RoundedCornerShape(24.dp))
                           .background(Color(0xFF162B32))
                           .border(2.dp, Color(0xFF33FFFF), RoundedCornerShape(24.dp))
@@ -537,7 +535,6 @@ fun SafeAppGridModal(
                 .focusable(true),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Верхняя строка с заголовком и кнопкой закрытия
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -548,7 +545,6 @@ fun SafeAppGridModal(
                 var isCloseFocused by remember { mutableStateOf(false) }
                 Box(
                     modifier = Modifier
-                        .focusRequester(closeButtonRequester)
                         .onFocusChanged { isCloseFocused = it.isFocused }
                         .focusable()
                         .clip(RoundedCornerShape(12.dp))
@@ -560,41 +556,27 @@ fun SafeAppGridModal(
                     Text("Закрыть ✕", color = Color.White, fontSize = if (isPicker) 16.sp else 20.sp)
                 }
             }
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(16.dp))
 
-            // РУЧНАЯ СЕТКА ИЗ КОЛОНОК И РЯДОВ (железобетонный фокус)
-            Column(
-                modifier = Modifier.fillMaxWidth().weight(1f),
+            // Полноценный скроллируемый LazyVerticalGrid с защитой от вылета фокуса
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(if (isPicker) 5 else 6),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .focusable(true)
             ) {
-                for (r in 0 until rows) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        for (c in 0 until cols) {
-                            val index = r * cols + c
-                            if (index < apps.size) {
-                                val app = apps[index]
-                                val req = if (index == 0) firstItemRequester else remember { FocusRequester() }
-
-                                HumeAppCard(
-                                    app = app,
-                                    iconCache = iconCache,
-                                    onClick = { onAppClick(app) },
-                                    isLocked = lockedPackages.contains(app.packageName),
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .focusRequester(req)
-                                )
-                            } else {
-                                // Пустая ячейка для выравнивания строки, чтобы сетка не «плыла»
-                                Spacer(modifier = Modifier.weight(1f))
-                            }
-                        }
-                    }
+                itemsIndexed(apps) { index, app ->
+                    val modifier = if (index == 0) Modifier.focusRequester(firstItemRequester) else Modifier
+                    HumeAppCard(
+                        app = app,
+                        iconCache = iconCache,
+                        onClick = { onAppClick(app) },
+                        isLocked = lockedPackages.contains(app.packageName),
+                        modifier = modifier
+                    )
                 }
             }
         }
@@ -642,11 +624,13 @@ fun MenuButton(text: String, isRed: Boolean = false, modifier: Modifier = Modifi
 @Composable
 fun HumeAppCard(app: AppInfo, iconCache: MutableMap<String, ImageBitmap>, onClick: () -> Unit, isLocked: Boolean, modifier: Modifier = Modifier) {
     var isFocused by remember { mutableStateOf(false) }
+    val focusRequester = remember { FocusRequester() }
     val bmp = iconCache[app.packageName] ?: app.icon.toBitmap().asImageBitmap().also { iconCache[app.packageName] = it }
 
     Box(
         modifier = modifier
             .height(95.dp)
+            .focusRequester(focusRequester)
             .onFocusChanged { isFocused = it.isFocused }
             .focusable()
             .clip(RoundedCornerShape(16.dp))
