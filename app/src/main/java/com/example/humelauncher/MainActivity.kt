@@ -619,7 +619,7 @@ fun HumeHomeScreen() {
 enum class PinDialogType { NONE, SET, ENTER, REMOVE }
 
 /**
- * ЗАЩИЩЕННОЕ ОКНО НАСТРОЕК (ФОКУС НАДЕЖНО УДЕРЖИВАЕТСЯ ВНУТРИ)
+ * КОМПАКТНОЕ ОКНО НАСТРОЕК СПРАВА (С НАДЕЖНЫМ УДЕРЖАНИЕМ ФОКУСА)
  */
 @Composable
 fun SettingsModal(
@@ -657,106 +657,100 @@ fun SettingsModal(
     Box(
         Modifier.fillMaxSize()
             .background(Color(0xCC000000))
-            .focusable(true), // Предотвращает вылет фокуса наружу окна
-        contentAlignment = Alignment.Center
+            .focusable(true), // Блокирует уход фокуса за пределы фона
+        contentAlignment = Alignment.CenterEnd
     ) {
         Column(
             modifier = Modifier
-                .width(560.dp)
+                .padding(end = 48.dp)
+                .width(460.dp)
                 .clip(RoundedCornerShape(24.dp))
                 .background(Color(0xFF162B32))
                 .border(2.dp, Color(0xFF33FFFF), RoundedCornerShape(24.dp))
-                .focusable(true) // Жестко удерживает фокус внутри модалки
-                .padding(24.dp),
+                .focusable(true) // Жестко удерживает фокус внутри карточки настроек
+                .padding(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text("⚙️ Расширенные настройки", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(12.dp))
+            Text("⚙️ Настройки", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(10.dp))
 
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(max = 420.dp)
+                    .heightIn(max = 440.dp)
                     .verticalScroll(rememberScrollState())
-                    .focusable(true),
+                    .focusable(true), // Изолирует скролл-контейнер от фокуса главной страницы
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Положение дока
-                Text("Положение дока:", color = Color.White.copy(0.7f), fontSize = 13.sp)
+                Text("Положение дока:", color = Color.White.copy(0.7f), fontSize = 12.sp)
                 Spacer(Modifier.height(4.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     OptionButton("Внизу", selected = dockPosition == "BOTTOM", modifier = Modifier.weight(1f).focusRequester(firstOptionRequester)) { onDockPosChange("BOTTOM") }
-                    OptionButton("По центру", selected = dockPosition == "CENTER", modifier = Modifier.weight(1f)) { onDockPosChange("CENTER") }
+                    OptionButton("Центр", selected = dockPosition == "CENTER", modifier = Modifier.weight(1f)) { onDockPosChange("CENTER") }
                     OptionButton("Вверху", selected = dockPosition == "TOP", modifier = Modifier.weight(1f)) { onDockPosChange("TOP") }
                 }
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(6.dp))
 
-                // Размер карточек
-                Text("Размер карточек:", color = Color.White.copy(0.7f), fontSize = 13.sp)
+                Text("Размер карточек:", color = Color.White.copy(0.7f), fontSize = 12.sp)
                 Spacer(Modifier.height(4.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     OptionButton("Мелкий", selected = cardSize == "SMALL", modifier = Modifier.weight(1f)) { onCardSizeChange("SMALL") }
                     OptionButton("Средний", selected = cardSize == "MEDIUM", modifier = Modifier.weight(1f)) { onCardSizeChange("MEDIUM") }
                     OptionButton("Крупный", selected = cardSize == "LARGE", modifier = Modifier.weight(1f)) { onCardSizeChange("LARGE") }
                 }
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(6.dp))
 
-                // Форма иконок
-                Text("Форма иконок:", color = Color.White.copy(0.7f), fontSize = 13.sp)
+                Text("Форма иконок:", color = Color.White.copy(0.7f), fontSize = 12.sp)
                 Spacer(Modifier.height(4.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     OptionButton("Скругленные", selected = iconShape == "ROUNDED", modifier = Modifier.weight(1f)) { onIconShapeChange("ROUNDED") }
                     OptionButton("Круглые", selected = iconShape == "CIRCLE", modifier = Modifier.weight(1f)) { onIconShapeChange("CIRCLE") }
                     OptionButton("Квадратные", selected = iconShape == "SQUARE", modifier = Modifier.weight(1f)) { onIconShapeChange("SQUARE") }
                 }
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(6.dp))
 
-                // Колонок в сетке
-                Text("Колонок в сетке приложений:", color = Color.White.copy(0.7f), fontSize = 13.sp)
+                Text("Колонок в сетке:", color = Color.White.copy(0.7f), fontSize = 12.sp)
                 Spacer(Modifier.height(4.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     OptionButton("5 колонок", selected = gridColumns == 5, modifier = Modifier.weight(1f)) { onGridColumnsChange(5) }
                     OptionButton("6 колонок", selected = gridColumns == 6, modifier = Modifier.weight(1f)) { onGridColumnsChange(6) }
                     OptionButton("7 колонок", selected = gridColumns == 7, modifier = Modifier.weight(1f)) { onGridColumnsChange(7) }
                 }
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(6.dp))
 
-                // Системные и сортировка
-                Text("Фильтрация и сортировка:", color = Color.White.copy(0.7f), fontSize = 13.sp)
+                Text("Фильтрация и сортировка:", color = Color.White.copy(0.7f), fontSize = 12.sp)
                 Spacer(Modifier.height(4.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     OptionButton(if (hideSystemApps) "Системные: Скрыты" else "Системные: Видны", selected = hideSystemApps, modifier = Modifier.weight(1f)) { onHideSystemChange(!hideSystemApps) }
                     OptionButton(if (appSortMode == "NAME") "Сорт: А-Я" else "Сорт: Обычный", selected = appSortMode == "NAME", modifier = Modifier.weight(1f)) { onSortModeChange(if (appSortMode == "NAME") "NEWEST" else "NAME") }
                 }
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(6.dp))
 
-                // Тема / Обои
-                Text("Тема оформления:", color = Color.White.copy(0.7f), fontSize = 13.sp)
+                Text("Тема оформления:", color = Color.White.copy(0.7f), fontSize = 12.sp)
                 Spacer(Modifier.height(4.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OptionButton("Авто (День/Ночь)", selected = themeMode == "AUTO", modifier = Modifier.weight(1f)) { onThemeChange("AUTO") }
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    OptionButton("Авто", selected = themeMode == "AUTO", modifier = Modifier.weight(1f)) { onThemeChange("AUTO") }
                     OptionButton("Темная", selected = themeMode == "DARK", modifier = Modifier.weight(1f)) { onThemeChange("DARK") }
                     OptionButton("Бирюза", selected = themeMode == "TEAL", modifier = Modifier.weight(1f)) { onThemeChange("TEAL") }
                     OptionButton("Закат", selected = themeMode == "SUNSET", modifier = Modifier.weight(1f)) { onThemeChange("SUNSET") }
                 }
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(6.dp))
 
-                // Формат времени
-                Text("Формат времени:", color = Color.White.copy(0.7f), fontSize = 13.sp)
+                Text("Формат времени:", color = Color.White.copy(0.7f), fontSize = 12.sp)
                 Spacer(Modifier.height(4.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     OptionButton("24-часовой", selected = timeFormat24, modifier = Modifier.weight(1f)) { onTimeFormatChange(true) }
-                    OptionButton("12-часовой (AM/PM)", selected = !timeFormat24, modifier = Modifier.weight(1f)) { onTimeFormatChange(false) }
+                    OptionButton("12-часовой", selected = !timeFormat24, modifier = Modifier.weight(1f)) { onTimeFormatChange(false) }
                 }
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(6.dp))
 
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     MenuButton("Автозапуск: $autostartAppName", modifier = Modifier.weight(1f)) { onOpenAutostartPicker() }
-                    MenuButton("Настройки Android ⚙️", modifier = Modifier.weight(1f)) { onOpenSystemSettings() }
+                    MenuButton("Android ⚙️", modifier = Modifier.weight(1f)) { onOpenSystemSettings() }
                 }
             }
 
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(10.dp))
             MenuButton("Закрыть ✕") { onClose() }
         }
     }
@@ -768,7 +762,7 @@ fun OptionButton(text: String, selected: Boolean, modifier: Modifier = Modifier,
 
     Box(
         modifier = modifier
-            .height(34.dp)
+            .height(32.dp)
             .onFocusChanged { isFocused = it.isFocused }
             .focusable()
             .clip(RoundedCornerShape(8.dp))
@@ -882,7 +876,7 @@ fun ModalContainer(onDismiss: () -> Unit, width: Dp, content: @Composable Column
     Box(
         Modifier.fillMaxSize()
             .background(Color(0xCC000000))
-            .focusable(true),
+            .focusable(true), // Надежно запирает фокус внутри модального контейнера
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -906,16 +900,16 @@ fun MenuButton(text: String, isRed: Boolean = false, modifier: Modifier = Modifi
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(42.dp)
+            .height(38.dp)
             .onFocusChanged { isFocused = it.isFocused }
             .focusable()
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(10.dp))
             .background(if (isFocused) Color(0x66FFFFFF) else if (isRed) Color(0x44FF0000) else Color(0x22FFFFFF))
-            .border(width = if (isFocused) 2.dp else 0.dp, color = Color.White, shape = RoundedCornerShape(12.dp))
+            .border(width = if (isFocused) 2.dp else 0.dp, color = Color.White, shape = RoundedCornerShape(10.dp))
             .clickable { onClick() },
         contentAlignment = Alignment.Center
     ) {
-        Text(text, color = if (isRed) Color(0xFFFF6B6B) else Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+        Text(text, color = if (isRed) Color(0xFFFF6B6B) else Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium)
     }
 }
 
