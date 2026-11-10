@@ -6,6 +6,7 @@ import android.content.SharedPreferences
 import android.content.pm.ActivityInfo
 import android.net.Uri
 import android.os.Bundle
+import android.provider.Settings
 import android.view.Window
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -40,6 +41,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
@@ -58,6 +60,19 @@ class MainActivity : ComponentActivity() {
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
         WindowCompat.setDecorFitsSystemWindows(window, false)
         WindowInsetsControllerCompat(window, window.decorView).hide(WindowInsetsCompat.Type.systemBars())
+        
+        val prefs = getSharedPreferences("HumeLauncherPrefs", Context.MODE_PRIVATE)
+        val autostartPkg = prefs.getString("autostart_pkg", "")
+        if (!autostartPkg.isNullOrEmpty()) {
+            try {
+                val intent = packageManager.getLaunchIntentForPackage(autostartPkg)
+                if (intent != null) {
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    startActivity(intent)
+                }
+            } catch (_: Exception) {}
+        }
+
         setContent { HumeHomeScreen() }
     }
 }
@@ -71,22 +86,58 @@ fun HumeHomeScreen() {
     var dockApps by remember { mutableStateOf<MutableList<AppInfo?>>(mutableListOf(null, null, null, null, null)) }
     
     var currentTime by remember { mutableStateOf("") }
+    var currentHour by remember { mutableIntStateOf(12) }
+    
+    // Экраны и диалоги
     var isDrawerOpen by remember { mutableStateOf(false) }     
     var isPickerOpen by remember { mutableStateOf(false) }     
+    var isSettingsOpen by remember { mutableStateOf(false) }
+    var isAutostartPickerOpen by remember { mutableStateOf(false) }
     var targetDockIndex by remember { mutableIntStateOf(-1) }
     var isEditMode by remember { mutableStateOf(false) }       
     
     var rightPressCount by remember { mutableIntStateOf(0) }
     var selectedAppForMenu by remember { mutableStateOf<AppInfo?>(null) }
     
+    // Безопасность
     var lockedPackages by remember { mutableStateOf(prefs.getStringSet("locked_packages", emptySet()) ?: emptySet()) }
     var savedPin by remember { mutableStateOf(prefs.getString("saved_pin", "") ?: "") }
     var pinInput by remember { mutableStateOf("") }
-    
     var pinDialogType by remember { mutableStateOf<PinDialogType>(PinDialogType.NONE) }
     var pendingAppAction by remember { mutableStateOf<AppInfo?>(null) }
 
+    // Настройки и кастомизация
+    var dockPosition by remember { mutableStateOf(prefs.getString("dock_pos", "BOTTOM") ?: "BOTTOM") }
+    var cardSize by remember { mutableStateOf(prefs.getString("card_size", "MEDIUM") ?: "MEDIUM") }
+    var themeMode by remember { mutableStateOf(prefs.getString("theme_mode", "AUTO") ?: "AUTO") }
+    var timeFormat24 by remember { mutableStateOf(prefs.getBoolean("time_24h", true)) }
+    var gridColumns by remember { mutableStateOf(prefs.getInt("grid_cols", 6)) }
+    var autostartPkg by remember { mutableStateOf(prefs.getString("autostart_pkg", "") ?: "") }
+    var hideSystemApps by remember { mutableStateOf(prefs.getBoolean("hide_system", true)) }
+    var appSortMode by remember { mutableStateOf(prefs.getString("sort_mode", "NAME") ?: "NAME") }
+    var iconShape by remember { mutableStateOf(prefs.getString("icon_shape", "ROUNDED") ?: "ROUNDED") }
+
     val iconCache = remember { mutableStateMapOf<String, ImageBitmap>() }
+
+    // Фильтрация и сортировка приложений
+    val displayedApps = remember(allApps, hideSystemApps, appSortMode) {
+        val filtered = if (hideSystemApps) {
+            allApps.filter { app ->
+                !app.packageName.contains("android.internal") &&
+                !app.packageName.contains("providers") &&
+                !app.packageName.contains("overlay") &&
+                !app.packageName.contains("services") &&
+                app.packageName != "com.example.humelauncher"
+            }
+        } else {
+            allApps
+        }
+
+        when (appSortMode) {
+            "NEWEST" -> filtered // Порядок из системы (обычно по дате/установке)
+            else -> filtered.sortedBy { it.name } // По умолчанию А-Я
+        }
+    }
 
     val saveDockToPrefs = { currentDock: List<AppInfo?> ->
         val editor = prefs.edit()
@@ -118,6 +169,8 @@ fun HumeHomeScreen() {
         when {
             pinDialogType != PinDialogType.NONE -> pinDialogType = PinDialogType.NONE
             selectedAppForMenu != null -> selectedAppForMenu = null
+            isAutostartPickerOpen -> isAutostartPickerOpen = false
+            isSettingsOpen -> isSettingsOpen = false
             isPickerOpen -> isPickerOpen = false
             isDrawerOpen -> isDrawerOpen = false
             isEditMode -> isEditMode = false
@@ -125,16 +178,19 @@ fun HumeHomeScreen() {
         }
     }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(timeFormat24) {
         while (true) {
-            currentTime = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
+            val now = Date()
+            val pattern = if (timeFormat24) "HH:mm" else "hh:mm a"
+            currentTime = SimpleDateFormat(pattern, Locale.getDefault()).format(now)
+            currentHour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
             delay(30_000)
         }
     }
 
     LaunchedEffect(Unit) {
         val apps = withContext(Dispatchers.IO) { getAllApps(context) }
-        allApps = apps.sortedBy { it.name }
+        allApps = apps
         
         val restoredDock = mutableListOf<AppInfo?>(null, null, null, null, null)
         var hasRestored = false
@@ -154,8 +210,8 @@ fun HumeHomeScreen() {
 
         if (hasRestored) {
             dockApps = restoredDock
-        } else if (allApps.isNotEmpty()) {
-            val initial = allApps.take(3)
+        } else if (apps.isNotEmpty()) {
+            val initial = apps.take(3)
             val list = mutableListOf<AppInfo?>()
             list.addAll(initial)
             while (list.size < 5) list.add(null)
@@ -174,13 +230,32 @@ fun HumeHomeScreen() {
         }
     }
 
-    Box(Modifier.fillMaxSize().background(
-        Brush.radialGradient(
-            colors = listOf(Color(0xFF144D59), Color(0xFF071B22), Color(0xFF000000)),
-            center = androidx.compose.ui.geometry.Offset(1000f, 1000f),
-            radius = 2500f
-        )
-    )) {
+    val bgGradient = when (themeMode) {
+        "DARK" -> Brush.radialGradient(listOf(Color(0xFF142429), Color(0xFF071B22), Color(0xFF000000)))
+        "TEAL" -> Brush.radialGradient(listOf(Color(0xFF144D59), Color(0xFF071B22), Color(0xFF000000)))
+        "SUNSET" -> Brush.radialGradient(listOf(Color(0xFF4A1525), Color(0xFF1A0917), Color(0xFF000000)))
+        else -> {
+            if (currentHour in 6..18) {
+                Brush.radialGradient(listOf(Color(0xFF1F5F6D), Color(0xFF0E303A), Color(0xFF051216)))
+            } else {
+                Brush.radialGradient(listOf(Color(0xFF102830), Color(0xFF071418), Color(0xFF000000)))
+            }
+        }
+    }
+
+    val cardHeight = when (cardSize) {
+        "SMALL" -> 80.dp
+        "LARGE" -> 115.dp
+        else -> 95.dp
+    }
+
+    val iconSize = when (cardSize) {
+        "SMALL" -> 40.dp
+        "LARGE" -> 56.dp
+        else -> 48.dp
+    }
+
+    Box(Modifier.fillMaxSize().background(bgGradient)) {
         if (allApps.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text("Загрузка приложений...", color = Color.White, fontSize = 24.sp)
@@ -188,7 +263,7 @@ fun HumeHomeScreen() {
         } else {
             // ВЕРХНЯЯ ПАНЕЛЬ
             Row(
-                Modifier.fillMaxWidth().padding(horizontal = 48.dp, vertical = 32.dp),
+                Modifier.fillMaxWidth().padding(horizontal = 48.dp, vertical = 24.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -212,18 +287,38 @@ fun HumeHomeScreen() {
                     Text(currentTime, color = Color.White.copy(0.9f), fontSize = 18.sp, fontWeight = FontWeight.Medium)
                     Spacer(Modifier.width(8.dp))
                     
-                    repeat(3) {
-                        Box(Modifier.size(36.dp).clip(CircleShape).background(Color(0x22FFFFFF)).border(1.dp, Color(0x33FFFFFF), CircleShape), contentAlignment = Alignment.Center) {
-                            Text(when(it) { 0 -> "⚙️"; 1 -> "🔍"; else -> "👤" }, fontSize = 14.sp)
-                        }
+                    var isSettingsBtnFocused by remember { mutableStateOf(false) }
+                    Box(
+                        Modifier.size(40.dp)
+                            .onFocusChanged { isSettingsBtnFocused = it.isFocused }
+                            .focusable()
+                            .clip(CircleShape)
+                            .background(if (isSettingsBtnFocused) Color(0x66FFFFFF) else Color(0x22FFFFFF))
+                            .border(width = if (isSettingsBtnFocused) 2.dp else 1.dp, color = Color.White, shape = CircleShape)
+                            .clickable { isSettingsOpen = true },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("⚙️", fontSize = 16.sp)
                     }
                 }
             }
 
-            // НИЖНИЙ ДОК
+            val dockAlignment = when (dockPosition) {
+                "TOP" -> Alignment.TopCenter
+                "CENTER" -> Alignment.Center
+                else -> Alignment.BottomCenter
+            }
+
+            val dockPadding = when (dockPosition) {
+                "TOP" -> Modifier.padding(top = 90.dp)
+                "CENTER" -> Modifier.padding(0.dp)
+                else -> Modifier.padding(bottom = 20.dp)
+            }
+
+            // ДОК
             Box(
-                Modifier.align(Alignment.BottomCenter)
-                    .padding(bottom = 20.dp)
+                Modifier.align(dockAlignment)
+                    .then(dockPadding)
                     .fillMaxWidth(0.92f)
                     .height(130.dp)
                     .clip(RoundedCornerShape(32.dp))
@@ -254,7 +349,7 @@ fun HumeHomeScreen() {
                                         rightPressCount++
                                         if (rightPressCount >= 2) {
                                             isEditMode = true
-                                            Toast.makeText(context, "Админ-режим активирован!", Toast.LENGTH_SHORT).show()
+                                            Toast.makeText(context, "Режим редактора активирован!", Toast.LENGTH_SHORT).show()
                                         }
                                         true
                                     } else {
@@ -317,14 +412,14 @@ fun HumeHomeScreen() {
 
         // ОКНО ВСЕХ ПРИЛОЖЕНИЙ (•••)
         if (isDrawerOpen) {
-            ScrollableAppGridModal(title = "Все приложения", apps = allApps, iconCache = iconCache, lockedPackages = lockedPackages, onClose = { isDrawerOpen = false }) { app ->
+            ScrollableAppGridModal(title = "Все приложения", apps = displayedApps, iconCache = iconCache, lockedPackages = lockedPackages, gridColumns = gridColumns, cardHeight = cardHeight, iconSize = iconSize, iconShape = iconShape, onClose = { isDrawerOpen = false }) { app ->
                 selectedAppForMenu = app
             }
         }
 
         // ОКНО ВЫБОРА В ДОК (+)
         if (isPickerOpen) {
-            ScrollableAppGridModal(title = "Выберите приложение в док", apps = allApps, iconCache = iconCache, lockedPackages = lockedPackages, isPicker = true, onClose = { isPickerOpen = false }) { app ->
+            ScrollableAppGridModal(title = "Выберите приложение в док", apps = displayedApps, iconCache = iconCache, lockedPackages = lockedPackages, isPicker = true, gridColumns = gridColumns, cardHeight = cardHeight, iconSize = iconSize, iconShape = iconShape, onClose = { isPickerOpen = false }) { app ->
                 if (targetDockIndex in dockApps.indices) {
                     val list = dockApps.toMutableList()
                     list[targetDockIndex] = app
@@ -332,6 +427,49 @@ fun HumeHomeScreen() {
                     saveDockToPrefs(dockApps)
                 }
                 isPickerOpen = false
+            }
+        }
+
+        // ОКНО НАСТРОЕК (⚙️)
+        if (isSettingsOpen) {
+            SettingsModal(
+                dockPosition = dockPosition,
+                cardSize = cardSize,
+                themeMode = themeMode,
+                timeFormat24 = timeFormat24,
+                gridColumns = gridColumns,
+                hideSystemApps = hideSystemApps,
+                appSortMode = appSortMode,
+                iconShape = iconShape,
+                autostartPkg = autostartPkg,
+                allApps = allApps,
+                onDockPosChange = { dockPosition = it; prefs.edit().putString("dock_pos", it).apply() },
+                onCardSizeChange = { cardSize = it; prefs.edit().putString("card_size", it).apply() },
+                onThemeChange = { themeMode = it; prefs.edit().putString("theme_mode", it).apply() },
+                onTimeFormatChange = { timeFormat24 = it; prefs.edit().putBoolean("time_24h", it).apply() },
+                onGridColumnsChange = { gridColumns = it; prefs.edit().putInt("grid_cols", it).apply() },
+                onHideSystemChange = { hideSystemApps = it; prefs.edit().putBoolean("hide_system", it).apply() },
+                onSortModeChange = { appSortMode = it; prefs.edit().putString("sort_mode", it).apply() },
+                onIconShapeChange = { iconShape = it; prefs.edit().putString("icon_shape", it).apply() },
+                onOpenAutostartPicker = { isAutostartPickerOpen = true },
+                onOpenSystemSettings = {
+                    try {
+                        context.startActivity(Intent(Settings.ACTION_SETTINGS).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) })
+                    } catch (_: Exception) {
+                        Toast.makeText(context, "Не удалось открыть настройки", Toast.LENGTH_SHORT).show()
+                    }
+                },
+                onClose = { isSettingsOpen = false }
+            )
+        }
+
+        // ВЫБОР ПРИЛОЖЕНИЯ ДЛЯ АВТОЗАПУСКА
+        if (isAutostartPickerOpen) {
+            ScrollableAppGridModal(title = "Выберите автозапуск", apps = displayedApps, iconCache = iconCache, lockedPackages = lockedPackages, gridColumns = gridColumns, cardHeight = cardHeight, iconSize = iconSize, iconShape = iconShape, onClose = { isAutostartPickerOpen = false }) { app ->
+                autostartPkg = app.packageName
+                prefs.edit().putString("autostart_pkg", app.packageName).apply()
+                Toast.makeText(context, "Автозапуск: ${app.name}", Toast.LENGTH_SHORT).show()
+                isAutostartPickerOpen = false
             }
         }
 
@@ -491,8 +629,137 @@ fun HumeHomeScreen() {
 enum class PinDialogType { NONE, SET, ENTER, REMOVE }
 
 /**
- * ИДЕАЛЬНАЯ СЕТКА С ПОЛНЫМ СКРОЛЛОМ И ЗАЩИТОЙ ФОКУСА
+ * ОКНО НАСТРОЕК ЛАУНЧЕРА (С расширенным функционалом)
  */
+@Composable
+fun SettingsModal(
+    dockPosition: String,
+    cardSize: String,
+    themeMode: String,
+    timeFormat24: Boolean,
+    gridColumns: Int,
+    hideSystemApps: Boolean,
+    appSortMode: String,
+    iconShape: String,
+    autostartPkg: String,
+    allApps: List<AppInfo>,
+    onDockPosChange: (String) -> Unit,
+    onCardSizeChange: (String) -> Unit,
+    onThemeChange: (String) -> Unit,
+    onTimeFormatChange: (Boolean) -> Unit,
+    onGridColumnsChange: (Int) -> Unit,
+    onHideSystemChange: (Boolean) -> Unit,
+    onSortModeChange: (String) -> Unit,
+    onIconShapeChange: (String) -> Unit,
+    onOpenAutostartPicker: () -> Unit,
+    onOpenSystemSettings: () -> Unit,
+    onClose: () -> Unit
+) {
+    val autostartAppName = allApps.find { it.packageName == autostartPkg }?.name ?: "Отключен"
+
+    ModalContainer(onDismiss = onClose, width = 560.dp) {
+        Text("⚙️ Расширенные настройки", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(12.dp))
+
+        // Положение дока
+        Text("Положение дока:", color = Color.White.copy(0.7f), fontSize = 13.sp)
+        Spacer(Modifier.height(4.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OptionButton("Внизу", selected = dockPosition == "BOTTOM", modifier = Modifier.weight(1f)) { onDockPosChange("BOTTOM") }
+            OptionButton("По центру", selected = dockPosition == "CENTER", modifier = Modifier.weight(1f)) { onDockPosChange("CENTER") }
+            OptionButton("Вверху", selected = dockPosition == "TOP", modifier = Modifier.weight(1f)) { onDockPosChange("TOP") }
+        }
+        Spacer(Modifier.height(8.dp))
+
+        // Размер карточек
+        Text("Размер карточек:", color = Color.White.copy(0.7f), fontSize = 13.sp)
+        Spacer(Modifier.height(4.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OptionButton("Мелкий", selected = cardSize == "SMALL", modifier = Modifier.weight(1f)) { onCardSizeChange("SMALL") }
+            OptionButton("Средний", selected = cardSize == "MEDIUM", modifier = Modifier.weight(1f)) { onCardSizeChange("MEDIUM") }
+            OptionButton("Крупный", selected = cardSize == "LARGE", modifier = Modifier.weight(1f)) { onCardSizeChange("LARGE") }
+        }
+        Spacer(Modifier.height(8.dp))
+
+        // Форма иконок
+        Text("Форма иконок:", color = Color.White.copy(0.7f), fontSize = 13.sp)
+        Spacer(Modifier.height(4.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OptionButton("Скругленные", selected = iconShape == "ROUNDED", modifier = Modifier.weight(1f)) { onIconShapeChange("ROUNDED") }
+            OptionButton("Круглые", selected = iconShape == "CIRCLE", modifier = Modifier.weight(1f)) { onIconShapeChange("CIRCLE") }
+            OptionButton("Квадратные", selected = iconShape == "SQUARE", modifier = Modifier.weight(1f)) { onIconShapeChange("SQUARE") }
+        }
+        Spacer(Modifier.height(8.dp))
+
+        // Колонок в сетке
+        Text("Колонок в сетке приложений:", color = Color.White.copy(0.7f), fontSize = 13.sp)
+        Spacer(Modifier.height(4.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OptionButton("5 колонок", selected = gridColumns == 5, modifier = Modifier.weight(1f)) { onGridColumnsChange(5) }
+            OptionButton("6 колонок", selected = gridColumns == 6, modifier = Modifier.weight(1f)) { onGridColumnsChange(6) }
+            OptionButton("7 колонок", selected = gridColumns == 7, modifier = Modifier.weight(1f)) { onGridColumnsChange(7) }
+        }
+        Spacer(Modifier.height(8.dp))
+
+        // Сортировка и системные приложения
+        Text("Фильтрация и сортировка:", color = Color.White.copy(0.7f), fontSize = 13.sp)
+        Spacer(Modifier.height(4.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OptionButton(if (hideSystemApps) "Системные: Скрыты" else "Системные: Видны", selected = hideSystemApps, modifier = Modifier.weight(1f)) { onHideSystemChange(!hideSystemApps) }
+            OptionButton(if (appSortMode == "NAME") "Сорт: А-Я" else "Сорт: Обычный", selected = appSortMode == "NAME", modifier = Modifier.weight(1f)) { onSortModeChange(if (appSortMode == "NAME") "NEWEST" else "NAME") }
+        }
+        Spacer(Modifier.height(8.dp))
+
+        // Тема / Обои
+        Text("Тема оформления:", color = Color.White.copy(0.7f), fontSize = 13.sp)
+        Spacer(Modifier.height(4.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OptionButton("Авто (День/Ночь)", selected = themeMode == "AUTO", modifier = Modifier.weight(1f)) { onThemeChange("AUTO") }
+            OptionButton("Темная", selected = themeMode == "DARK", modifier = Modifier.weight(1f)) { onThemeChange("DARK") }
+            OptionButton("Бирюза", selected = themeMode == "TEAL", modifier = Modifier.weight(1f)) { onThemeChange("TEAL") }
+            OptionButton("Закат", selected = themeMode == "SUNSET", modifier = Modifier.weight(1f)) { onThemeChange("SUNSET") }
+        }
+        Spacer(Modifier.height(8.dp))
+
+        // Формат времени
+        Text("Формат времени:", color = Color.White.copy(0.7f), fontSize = 13.sp)
+        Spacer(Modifier.height(4.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OptionButton("24-часовой", selected = timeFormat24, modifier = Modifier.weight(1f)) { onTimeFormatChange(true) }
+            OptionButton("12-часовой (AM/PM)", selected = !timeFormat24, modifier = Modifier.weight(1f)) { onTimeFormatChange(false) }
+        }
+        Spacer(Modifier.height(8.dp))
+
+        // Системные шорткаты и автозапуск
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            MenuButton("Автозапуск: $autostartAppName", modifier = Modifier.weight(1f)) { onOpenAutostartPicker() }
+            MenuButton("Настройки Android ⚙️", modifier = Modifier.weight(1f)) { onOpenSystemSettings() }
+        }
+
+        Spacer(Modifier.height(14.dp))
+        MenuButton("Закрыть ✕") { onClose() }
+    }
+}
+
+@Composable
+fun OptionButton(text: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    var isFocused by remember { mutableStateOf(false) }
+
+    Box(
+        modifier = modifier
+            .height(34.dp)
+            .onFocusChanged { isFocused = it.isFocused }
+            .focusable()
+            .clip(RoundedCornerShape(8.dp))
+            .background(if (selected) Color(0xFF144D59) else if (isFocused) Color(0x44FFFFFF) else Color(0x15FFFFFF))
+            .border(width = if (isFocused) 2.dp else if (selected) 1.dp else 0.dp, color = Color.White, shape = RoundedCornerShape(8.dp))
+            .clickable { onClick() },
+        contentAlignment = Alignment.Center
+    ) {
+        Text(text, color = Color.White, fontSize = 11.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal)
+    }
+}
+
 @Composable
 fun ScrollableAppGridModal(
     title: String,
@@ -500,6 +767,10 @@ fun ScrollableAppGridModal(
     iconCache: MutableMap<String, ImageBitmap>,
     lockedPackages: Set<String>,
     isPicker: Boolean = false,
+    gridColumns: Int = 6,
+    cardHeight: Dp = 95.dp,
+    iconSize: Dp = 48.dp,
+    iconShape: String = "ROUNDED",
     onClose: () -> Unit,
     onAppClick: (AppInfo) -> Unit
 ) {
@@ -558,9 +829,8 @@ fun ScrollableAppGridModal(
             }
             Spacer(Modifier.height(16.dp))
 
-            // Полноценный скроллируемый LazyVerticalGrid с защитой от вылета фокуса
             LazyVerticalGrid(
-                columns = GridCells.Fixed(if (isPicker) 5 else 6),
+                columns = GridCells.Fixed(gridColumns),
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 modifier = Modifier
@@ -575,6 +845,9 @@ fun ScrollableAppGridModal(
                         iconCache = iconCache,
                         onClick = { onAppClick(app) },
                         isLocked = lockedPackages.contains(app.packageName),
+                        cardHeight = cardHeight,
+                        iconSize = iconSize,
+                        iconShape = iconShape,
                         modifier = modifier
                     )
                 }
@@ -584,7 +857,7 @@ fun ScrollableAppGridModal(
 }
 
 @Composable
-fun ModalContainer(onDismiss: () -> Unit, width: androidx.compose.ui.unit.Dp, content: @Composable ColumnScope.() -> Unit) {
+fun ModalContainer(onDismiss: () -> Unit, width: Dp, content: @Composable ColumnScope.() -> Unit) {
     Box(
         Modifier.fillMaxSize()
             .background(Color(0xCC000000))
@@ -607,29 +880,48 @@ fun ModalContainer(onDismiss: () -> Unit, width: androidx.compose.ui.unit.Dp, co
 
 @Composable
 fun MenuButton(text: String, isRed: Boolean = false, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    var isFocused by remember { mutableStateOf(false) }
+
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(44.dp)
+            .height(42.dp)
+            .onFocusChanged { isFocused = it.isFocused }
             .clip(RoundedCornerShape(12.dp))
-            .background(if (isRed) Color(0x44FF0000) else Color(0x22FFFFFF))
+            .background(if (isFocused) Color(0x66FFFFFF) else if (isRed) Color(0x44FF0000) else Color(0x22FFFFFF))
+            .border(width = if (isFocused) 2.dp else 0.dp, color = Color.White, shape = RoundedCornerShape(12.dp))
             .clickable { onClick() }
             .focusable(),
         contentAlignment = Alignment.Center
     ) {
-        Text(text, color = if (isRed) Color(0xFFFF6B6B) else Color.White, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+        Text(text, color = if (isRed) Color(0xFFFF6B6B) else Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
     }
 }
 
 @Composable
-fun HumeAppCard(app: AppInfo, iconCache: MutableMap<String, ImageBitmap>, onClick: () -> Unit, isLocked: Boolean, modifier: Modifier = Modifier) {
+fun HumeAppCard(
+    app: AppInfo, 
+    iconCache: MutableMap<String, ImageBitmap>, 
+    onClick: () -> Unit, 
+    isLocked: Boolean, 
+    cardHeight: Dp = 95.dp,
+    iconSize: Dp = 48.dp,
+    iconShape: String = "ROUNDED",
+    modifier: Modifier = Modifier
+) {
     var isFocused by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
     val bmp = iconCache[app.packageName] ?: app.icon.toBitmap().asImageBitmap().also { iconCache[app.packageName] = it }
 
+    val shape = when (iconShape) {
+        "CIRCLE" -> CircleShape
+        "SQUARE" -> RoundedCornerShape(4.dp)
+        else -> RoundedCornerShape(10.dp)
+    }
+
     Box(
         modifier = modifier
-            .height(95.dp)
+            .height(cardHeight)
             .focusRequester(focusRequester)
             .onFocusChanged { isFocused = it.isFocused }
             .focusable()
@@ -643,7 +935,7 @@ fun HumeAppCard(app: AppInfo, iconCache: MutableMap<String, ImageBitmap>, onClic
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.padding(4.dp)
         ) {
-            Image(bitmap = bmp, contentDescription = app.name, modifier = Modifier.size(48.dp).clip(RoundedCornerShape(10.dp)))
+            Image(bitmap = bmp, contentDescription = app.name, modifier = Modifier.size(iconSize).clip(shape), contentScale = ContentScale.Crop)
             Spacer(Modifier.height(4.dp))
             Text(app.name, color = Color.White, fontSize = 11.sp, maxLines = 1)
         }
@@ -677,7 +969,7 @@ fun openApp(context: Context, app: AppInfo) {
 
 fun openAppInfo(context: Context, app: AppInfo) {
     try {
-        context.startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+        context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
             data = Uri.parse("package:${app.packageName}")
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         })
